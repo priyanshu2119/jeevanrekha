@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Call simulator &amp; dispatch desk — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="flex-between mb1">
+    <div>
+      <p class="section-label mb0">Local harness · provider = {{ provider }}</p>
+      <h1 class="mt0 mb0" style="font-size:1.6rem">Call simulator &amp; dispatch desk</h1>
+      <p class="small muted mt0">
+        The handset on the left is the caller; the desk on the right is every
+        responder the system rings (ambulance node, ASHA, PHC, local transport,
+        district control room). Both sides drive the real state machine and the
+        real escalation engine — nothing here is canned. Confirmation window:
+        <strong>{{ confirm_window }}s</strong> per attempt.
+      </p>
+    </div>
+  </div>
+
+  <div id="sim-app" class="sim-layout" data-locales='{{ {"en":"en-IN","hi":"hi-IN","mr":"mr-IN","bn":"bn-IN","ta":"ta-IN","te":"te-IN"} | tojson }}'>
+
+    <!-- Handset -->
+    <div>
+      <div class="card mb1">
+        <div class="field">
+          <label for="sim-region">Caller's area (simulates caller-ID routing)</label>
+          <select id="sim-region">
+            <option value="">— unknown area —</option>
+            {% for r in regions %}
+              <option value="{{ r.id }}">{{ r.label }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="field">
+          <label for="sim-phone">Caller number <span class="faint">(optional)</span></label>
+          <input id="sim-phone" type="tel" placeholder="auto-generated if blank">
+        </div>
+        <div class="flex">
+          <button class="btn" id="sim-call-btn">{{ icon("phone") }} Place call</button>
+          <label class="flex small" style="margin:0;font-weight:500">
+            <input type="checkbox" id="sim-speak" style="width:auto"> voice
+          </label>
+        </div>
+      </div>
+
+      <div class="handset">
+        <div class="handset-screen" id="handset-screen" aria-live="polite">
+          <div class="sys">— handset idle. Place a call to begin. —</div>
+        </div>
+        <div class="keypad">
+          <button class="key" data-key="1">1</button>
+          <button class="key" data-key="2">2</button>
+          <button class="key" data-key="3">3</button>
+          <button class="key" data-key="4">4</button>
+          <button class="key" data-key="5">5</button>
+          <button class="key" data-key="6">6</button>
+          <button class="key" data-key="7">7</button>
+          <button class="key" data-key="8">8</button>
+          <button class="key" data-key="9">9</button>
+          <button class="key" data-key="*">*</button>
+          <button class="key" data-key="0">0</button>
+          <button class="key" data-key="#">#</button>
+        </div>
+        <div class="flex mt1">
+          <button class="btn secondary" id="sim-silence" style="flex:1">{{ icon("clock") }} No input</button>
+          <button class="btn danger" id="sim-hangup" style="flex:1">Hang up</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Dispatch desk -->
+    <div>
+      <div class="card mb1">
+        <div class="panel-title">{{ icon("routes") }} Live dispatch case</div>
+        <div id="desk-case"><div class="desk-empty">No active dispatch case.</div></div>
+      </div>
+
+      <div class="card mb1">
+        <div class="panel-title">{{ icon("phone") }} Outbound alerts — you are the responder</div>
+        <p class="small muted mt0">
+          Each item is a real outbound attempt by the routing engine. Confirming
+          here is exactly what a responder pressing 1 on a production call would
+          do. Let an item sit past its window and watch the engine escalate on
+          its own.
+        </p>
+        <div id="desk-items"></div>
+      </div>
+
+      <div class="card">
+        <div class="panel-title">{{ icon("warning") }} Operator follow-up queue</div>
+        <div id="desk-operator"></div>
+      </div>
+
+      {% if recent_calls %}
+      <div class="card mt1">
+        <div class="panel-title">{{ icon("log") }} Recent simulated calls</div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>Ref</th><th>Started</th><th>Status</th><th>Tier</th></tr></thead>
+            <tbody>
+              {% for c in recent_calls %}
+              <tr>
+                <td class="mono">{{ c.ref_code }}</td>
+                <td class="nowrap">{{ c.started_at | ist("%d %b, %H:%M") }}</td>
+                <td>{{ c.status }}</td>
+                <td>
+                  {% if c.result %}<span class="chip {{ c.result.tier }}">{{ c.result.tier }}</span>
+                  {% else %}<span class="chip neutral">in progress</span>{% endif %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/sim.js"></script>
+{% endblock %}
