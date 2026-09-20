@@ -1,0 +1,153 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}JeevanRekha — get to the right help, fast{% endblock %}
+
+{% block content %}
+<div class="wrap">
+
+  <!-- Hero: public-service voice, not a product launch -->
+  <div class="grid-2" style="align-items:start; margin-top:0.5rem">
+    <div>
+      <p class="section-label">Toll-free · works on any phone · no app, no data</p>
+      <h1>When something looks wrong,<br>call. We don't stop until help is confirmed.</h1>
+      <p class="lede">
+        JeevanRekha is a phone triage line for danger signs in pregnancy and
+        newborns. Answer a few simple questions in your language. If it is an
+        emergency, we contact the ambulance <em>and</em> your local backup at the
+        same time — and we keep escalating until a human confirms help is moving.
+      </p>
+      <div class="flex mt2">
+        <a class="btn btn-big" style="width:auto" href="/triage">{{ icon("phone") }} Start triage now</a>
+        <a class="btn secondary btn-big" style="width:auto" href="/sim">{{ icon("pulse") }} Open the call simulator</a>
+      </div>
+      <p class="small muted mt1">
+        On a real deployment this page is reached by calling
+        <strong>{{ settings.HELPLINE_DISPLAY }}</strong>. The simulator reproduces the
+        exact phone flow (DTMF keypad) locally.
+      </p>
+    </div>
+
+    <div class="card">
+      <div class="panel-title">{{ icon("routes") }} Why two tracks, not one</div>
+      <p class="small">
+        Published audits of India's 108 ambulance system found it transported
+        well under half of actual obstetric emergencies in most states studied —
+        under 5% in several — with rural response times of 41–47 minutes against
+        a 40-minute target. A system that says "help is coming" and goes quiet
+        is a false sense of security.
+      </p>
+      <p class="small mb0">
+        So JeevanRekha routes <strong>in parallel</strong>: the official ambulance
+        service <em>and</em> a locally configured backup chain (ASHA worker, PHC,
+        local emergency transport). Every attempt is logged, every timeout
+        auto-escalates to the next contact, and the caller hears honest status —
+        "requested, not yet confirmed" — until a human confirms.
+      </p>
+    </div>
+  </div>
+
+  <!-- How it works -->
+  <h2 id="how-it-works" style="margin-top:2.5rem">How a call works</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="panel-title">{{ icon("phone") }} 1 · Call &amp; choose your language</div>
+      <p class="small mb0">
+        Any handset, no smartphone or data needed. First thing you choose is
+        your language — Hindi, English, Marathi, Bengali, Tamil or Telugu.
+        Everything is spoken; every question is answered with
+        <strong>1 = yes, 2 = no, 3 = can't say</strong>.
+      </p>
+    </div>
+    <div class="card">
+      <div class="panel-title">{{ icon("list") }} 2 · A short, fixed set of questions</div>
+      <p class="small mb0">
+        The same danger-sign questions used in government community-health
+        training: heavy bleeding, fits, high fever, breathing difficulty, baby
+        not feeding, unusual sleepiness, and similar. A computer never
+        improvises here — the scoring is fixed, auditable rules.
+        <strong>"Can't say" always counts as a warning sign.</strong>
+      </p>
+    </div>
+    <div class="card">
+      <div class="panel-title">{{ icon("routes") }} 3 · One of three clear outcomes</div>
+      <p class="small mb0">
+        <span class="chip emergency">Emergency</span> help starts moving on two
+        tracks while you stay on the line ·
+        <span class="chip urgent">See a health worker</span> within 24 hours,
+        with what to watch for ·
+        <span class="chip reassurance">Likely fine</span> calm, standard care
+        advice — and you are always welcome to call again.
+      </p>
+    </div>
+  </div>
+
+  <!-- What this is / is not -->
+  <div class="grid-2 mt2" id="what-this-is" style="align-items:start">
+    <div class="card">
+      <div class="panel-title">{{ icon("check") }} What JeevanRekha is</div>
+      <ul class="yes-list small">
+        <li>A structured triage line: fixed questions, fixed rules, three outcomes.</li>
+        <li>A parallel emergency-routing system that keeps escalating until a human confirms.</li>
+        <li>An auditable record: every call, answer, decision and dispatch attempt is logged.</li>
+        <li>A tool that reinforces ASHA workers' training — and surfaces where the ambulance system is failing an area.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <div class="panel-title">{{ icon("warning") }} What JeevanRekha is not</div>
+      <ul class="not-list small">
+        <li>Not a doctor, not a diagnostic tool, not medical advice.</li>
+        <li>Not a chatbot — no language model decides anything about your health, ever.</li>
+        <li>Not a guarantee that an ambulance will arrive — and it never pretends to be. Status tells you exactly what is confirmed and what is not.</li>
+        <li>Not a replacement for 108/102 — it is a layer that makes reaching them faster and more reliable.</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- Three postures -->
+  <h2 style="margin-top:2.5rem">Built for three kinds of users</h2>
+  <div class="grid-3">
+    <div class="card">
+      <div class="panel-title">{{ icon("mother") }} Families &amp; mothers</div>
+      <p class="small mb0">
+        Frightened, possibly low-literacy, possibly not fluent in the default
+        language. The flow assumes almost zero cognitive load: short spoken
+        questions, three-button answers, immediate calm direction. Hesitation
+        is treated as a danger sign — never as "fine".
+      </p>
+    </div>
+    <div class="card">
+      <div class="panel-title">{{ icon("user") }} ASHA workers</div>
+      <p class="small mb0">
+        Use it mid-visit as a structured second opinion that reinforces your
+        training, and afterwards as documentation: a reviewable log of calls in
+        your area, repeat callers, and recurring danger signs per family.
+        <a href="/login">Sign in</a> to open your log.
+      </p>
+    </div>
+    <div class="card">
+      <div class="panel-title">{{ icon("chart") }} Health administrators</div>
+      <p class="small mb0">
+        Aggregate, anonymised visibility: call volume, tier distribution, and —
+        deliberately front and centre — the rate at which emergency calls
+        actually got confirmed timely dispatch versus escalating or exhausting.
+        That gap is a public-health signal, not something to hide.
+      </p>
+    </div>
+  </div>
+
+  <!-- Languages -->
+  <div class="card mt2">
+    <div class="panel-title">{{ icon("pulse") }} Languages on the line</div>
+    <div class="flex">
+      {% for code, name in language_names.items() %}
+        <span class="chip neutral" style="font-size:0.95rem; text-transform:none">{{ name }}</span>
+      {% endfor %}
+    </div>
+    <p class="small muted mb0 mt1">
+      Every question, instruction and status message is a fixed, reviewed
+      string in each language — nothing is machine-generated at call time.
+    </p>
+  </div>
+
+</div>
+{% endblock %}

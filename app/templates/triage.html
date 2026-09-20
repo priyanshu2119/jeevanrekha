@@ -1,0 +1,101 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Start triage — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap-narrow">
+
+  <div id="triage-app"
+       data-languages='{{ languages | tojson }}'
+       data-language-order='{{ language_order | tojson }}'
+       data-locales='{{ speech_locales | tojson }}'>
+
+    <!-- Setup -->
+    <div id="pane-setup" class="card">
+      <p class="section-label mb0">Web companion · same flow as the phone line</p>
+      <h1 class="mt0" style="font-size:1.7rem">Something looks wrong. Let's work out what to do — fast.</h1>
+      <p class="small muted">
+        This works exactly like a call to the helpline: a short fixed set of
+        questions, three-button answers, and one of three clear outcomes.
+        If it is an emergency, routing to the ambulance and your local backup
+        starts immediately, and you will see honest live status here.
+      </p>
+
+      <div class="field">
+        <label for="region-select">Your area <span class="faint">(so we know who to route to)</span></label>
+        <select id="region-select">
+          <option value="">— not listed / prefer not to say —</option>
+          {% for r in regions %}
+            <option value="{{ r.id }}">{{ r.label }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div class="field">
+        <label for="caller-phone">Phone number <span class="faint">(optional — you can stay anonymous)</span></label>
+        <input id="caller-phone" type="tel" inputmode="tel" placeholder="e.g. 98765 43210" autocomplete="tel">
+      </div>
+
+      <div class="field flex">
+        <label class="flex" style="margin:0; font-weight:500">
+          <input type="checkbox" id="speak-toggle" style="width:auto"> Read questions aloud (browser voice)
+        </label>
+      </div>
+
+      <button class="btn btn-big" id="start-btn">{{ icon("phone") }} Begin triage</button>
+
+      <div class="notice mt1 mb0 small">
+        {{ icon("warning") }} If this is a life-threatening emergency right now and
+        you can speak, calling is faster than typing. On a phone line dial
+        <strong>{{ settings.HELPLINE_DISPLAY }}</strong> or <strong>108</strong>.
+      </div>
+    </div>
+
+    <!-- Flow -->
+    <div id="pane-flow" class="flow-shell" hidden>
+      <div id="flow-body"></div>
+      <p class="small faint" style="text-align:center; margin-top:1.2rem">
+        Keyboard: press <span class="mono">1</span> / <span class="mono">2</span> /
+        <span class="mono">3</span> like a phone. Not sure? Always press 3 —
+        it is safer, and nobody will mind.
+      </p>
+    </div>
+
+    <!-- initial chrome labels (refreshed in the caller's language) -->
+    <div hidden>
+      <span id="i18n-btn_yes">Yes</span>
+      <span id="i18n-btn_no">No</span>
+      <span id="i18n-btn_unsure">Cannot say</span>
+      <span id="i18n-tier_emergency">Emergency — help is being arranged now</span>
+      <span id="i18n-tier_urgent">See a health worker within 24 hours</span>
+      <span id="i18n-tier_reassurance">Likely fine — with care advice</span>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="/static/js/triage.js"></script>
+<script>
+  // Refresh chrome labels (buttons, tier names) when the caller picks a language.
+  (function () {
+    let currentLang = null;
+    const check = setInterval(async () => {
+      const snapLang = window.__jrLang;
+      if (snapLang && snapLang !== currentLang) {
+        currentLang = snapLang;
+        try {
+          const res = await fetch(`/api/i18n?lang=${encodeURIComponent(currentLang)}&keys=btn_yes,btn_no,btn_unsure,tier_emergency,tier_urgent,tier_reassurance`);
+          const data = await res.json();
+          for (const [k, v] of Object.entries(data.strings || {})) {
+            const node = document.getElementById(`i18n-${k}`);
+            if (node) node.textContent = v;
+          }
+        } catch { /* keep English labels */ }
+      }
+    }, 600);
+    setTimeout(() => clearInterval(check), 30 * 60 * 1000);
+  })();
+</script>
+{% endblock %}
