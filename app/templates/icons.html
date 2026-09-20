@@ -1,0 +1,47 @@
+{#- Inline SVG icon set. Hand-drawn geometry, 1.75px stroke, 24×24 grid.
+    Used via: {% from "icons.html" import icon %} {{ icon("phone") } -#}
+{%- macro icon(name, cls="") -%}
+<svg class="icon {{ cls }}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" width="20" height="20">
+{%- if name == "pulse" -%}
+<path d="M2 12h4l2.5-7 5 14L16 12h6"/>
+{%- elif name == "phone" -%}
+<path d="M6.6 10.8c1.4 2.8 3.8 5.1 6.6 6.6l2.2-2.2c.3-.3.7-.4 1-.2 1.1.4 2.3.6 3.6.6.6 0 1 .4 1 1V20c0 .6-.4 1-1 1C10.6 21 3 13.4 3 4c0-.6.4-1 1-1h3.5c.6 0 1 .4 1 1 0 1.2.2 2.4.6 3.6.1.4 0 .8-.2 1l-2.3 2.2z"/>
+{%- elif name == "ambulance" -%}
+<path d="M2 7.5A1.5 1.5 0 0 1 3.5 6H13v10H2z"/><path d="M13 9.5h3.8L21 13v3h-8z"/><circle cx="6.5" cy="17.8" r="1.7"/><circle cx="16.8" cy="17.8" r="1.7"/><path d="M7 9v3.5M5.2 10.8h3.6"/>
+{%- elif name == "mother" -%}
+<circle cx="12" cy="4.2" r="2"/><path d="M12 6.7c-1.8 0-3 1.4-3 3.1 0 1 .2 1.7.2 2.3-1 1.2-1.7 2.7-1.7 4.3 0 2 1.2 3.6 2.5 4.3v1.6h4v-1.6c1.3-.7 2.5-2.3 2.5-4.3 0-2.6-1.8-4.7-3.3-5.7-.2-.5-.2-1-.2-1.6 0-1.7-1.2-3.1-3-3.1z"/>
+{%- elif name == "baby" -%}
+<circle cx="12" cy="7" r="3.4"/><path d="M6.2 12.4C6.2 17 8.8 20 12 20s5.8-3 5.8-7.6c0-1.4-1-2.4-2.4-2.4H8.6c-1.4 0-2.4 1-2.4 2.4z"/><path d="M10.6 6.8h.01M13.4 6.8h.01"/>
+{%- elif name == "warning" -%}
+<path d="M12 3.5 2.5 20h19L12 3.5z"/><path d="M12 9.5v4.5M12 17.2h.01"/>
+{%- elif name == "check" -%}
+<circle cx="12" cy="12" r="9"/><path d="m8.3 12.4 2.6 2.6 4.8-5.4"/>
+{%- elif name == "clock" -%}
+<circle cx="12" cy="12" r="9"/><path d="M12 7v5.2l3.2 2"/>
+{%- elif name == "user" -%}
+<circle cx="12" cy="8" r="3.6"/><path d="M4.8 20.2c0-3.7 3.2-6.2 7.2-6.2s7.2 2.5 7.2 6.2"/>
+{%- elif name == "pin" -%}
+<path d="M12 21.5S4.8 15.4 4.8 10a7.2 7.2 0 0 1 14.4 0c0 5.4-7.2 11.5-7.2 11.5z"/><circle cx="12" cy="10" r="2.6"/>
+{%- elif name == "chart" -%}
+<path d="M3 21h18"/><rect x="5" y="11" width="3.6" height="7"/><rect x="10.4" y="5.5" width="3.6" height="12.5"/><rect x="15.8" y="13" width="3.6" height="5"/>
+{%- elif name == "shield" -%}
+<path d="M12 2.8 5 5.8v5.1c0 4.6 3 8.7 7 10.3 4-1.6 7-5.7 7-10.3V5.8l-7-3z"/><path d="m9 11.8 2.2 2.2 4-4.4"/>
+{%- elif name == "list" -%}
+<path d="M8.5 6H21M8.5 12H21M8.5 18H21M3.6 6h.01M3.6 12h.01M3.6 18h.01"/>
+{%- elif name == "building" -%}
+<path d="M4 21V5.5A1.5 1.5 0 0 1 5.5 4h7A1.5 1.5 0 0 1 14 5.5V21M14 10h4.5A1.5 1.5 0 0 1 20 11.5V21M2 21h20M7.5 8h3M7.5 12h3M7.5 16h3M17 14h.01M17 17.5h.01"/>
+{%- elif name == "routes" -%}
+<circle cx="5.5" cy="5.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/><path d="M8 5.5h6a4 4 0 0 1 0 8h-4a4 4 0 0 0 0 8h6"/>
+{%- elif name == "log" -%}
+<path d="M5 3.5h14v17l-2.3-1.6-2.4 1.6-2.3-1.6L9.7 20.5 7.3 18.9 5 20.5z"/><path d="M9 8h6M9 12h6"/>
+{%- endif -%}
+</svg>
+{%- endmacro -%}
+
+{%- macro logo(size=34) -%}
+<svg viewBox="0 0 32 32" width="{{ size }}" height="{{ size }}" aria-hidden="true">
+  <circle cx="16" cy="16" r="14.5" fill="#0d6e60"/>
+  <circle cx="16" cy="16" r="14.5" fill="none" stroke="#073b33" stroke-width="1"/>
+  <path d="M6.5 17h3.8l2.4-6.2 4.2 12.4 2.9-8 1.7 3.3h4" fill="none" stroke="#f6f3ec" stroke-width="2.1" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+{%- endmacro -%}

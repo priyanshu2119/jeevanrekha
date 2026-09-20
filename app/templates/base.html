@@ -1,0 +1,89 @@
+{%- from "icons.html" import icon, logo -%}
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}JeevanRekha{% endblock %}</title>
+  <meta name="description" content="JeevanRekha — phone-based triage and emergency routing for maternal and newborn danger signs. Not a diagnostic tool.">
+  <link rel="icon" type="image/svg+xml" href="/static/img/favicon.svg">
+  <link rel="stylesheet" href="/static/css/app.css">
+  {% block head %}{% endblock %}
+</head>
+<body>
+  <div class="emergency-strip">
+    <span><strong>In an emergency right now?</strong> Call {{ settings.HELPLINE_DISPLAY }} (toll-free) or 108.</span>
+    <span>This service routes you to help — it does not diagnose illness.</span>
+  </div>
+
+  <header class="site-header">
+    <a class="brand" href="/">
+      {{ logo(34) }}
+      <span>
+        <span class="brand-name">JeevanRekha</span>
+        <span class="brand-sub">जीवनरेखा · maternal &amp; newborn triage line</span>
+      </span>
+    </a>
+    <nav class="site-nav">
+      <a href="/triage">Web triage</a>
+      <a href="/#how-it-works">How it works</a>
+      <a href="/sim">Call simulator</a>
+      {% if user %}
+        <a href="/staff">{{ user.full_name }}</a>
+        <a href="/logout">Sign out</a>
+      {% else %}
+        <a href="/login">Staff sign in</a>
+      {% endif %}
+      <a class="cta" href="/triage">{{ icon("phone") }} Start triage</a>
+    </nav>
+  </header>
+
+  <main>
+    {% block content %}{% endblock %}
+  </main>
+
+  <footer class="site-footer">
+    <div class="wrap">
+      <div class="footer-cols">
+        <div>
+          <h4>About this service</h4>
+          <p class="small muted" style="max-width:52ch">
+            JeevanRekha is a structured triage and parallel emergency-routing
+            service for maternal and newborn danger signs. Fixed questions,
+            deterministic rules, two routing tracks, honest live status, and
+            automatic escalation until a human confirms help is moving.
+          </p>
+        </div>
+        <div>
+          <h4>For callers</h4>
+          <p class="small">
+            <a href="/triage">Start a web triage</a><br>
+            <a href="/#how-it-works">How it works</a><br>
+            <a href="/#what-this-is">What this is — and is not</a>
+          </p>
+        </div>
+        <div>
+          <h4>For health staff</h4>
+          <p class="small">
+            <a href="/login">Sign in</a><br>
+            <a href="/asha">ASHA call log</a><br>
+            <a href="/admin">Administrator dashboard</a><br>
+            <a href="/sim">Dispatch desk &amp; simulator</a>
+          </p>
+        </div>
+      </div>
+      <p class="disclaimer">
+        JeevanRekha is a decision-support and emergency-routing service. It is
+        <strong>not</strong> a diagnostic tool, <strong>not</strong> a doctor, and
+        <strong>not</strong> a source of medical advice. Triage follows fixed,
+        publicly-documented danger-sign categories from government community-health
+        training material; every unclear answer escalates by design. In any
+        emergency, follow the instructions of health workers and local authorities.
+      </p>
+    </div>
+  </footer>
+
+  <script src="/static/js/flow.js"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>
