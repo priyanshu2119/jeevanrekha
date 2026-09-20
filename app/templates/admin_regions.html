@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Regions &amp; routing — JeevanRekha admin{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <p class="small"><a href="/admin">&larr; Dashboard</a></p>
+  <p class="section-label mb0">Administrator</p>
+  <h1 class="mt0" style="font-size:1.6rem">Regions &amp; parallel-routing configuration</h1>
+  <p class="lede small">
+    Ambulance reliability and backup availability genuinely differ by state and
+    district. Each region carries its own emergency number, its own confirmation
+    window, and its own ordered backup chain (track B). The chain is walked
+    automatically on every timeout — order it the way help actually arrives locally.
+  </p>
+
+  <div class="card mb2">
+    <div class="panel-title">{{ icon("pin") }} Add a region</div>
+    <form method="post" action="/admin/regions" class="form-row">
+      <div class="field"><label>State</label><input name="state" type="text" required placeholder="Madhya Pradesh"></div>
+      <div class="field"><label>District</label><input name="district" type="text" required placeholder="Sehore"></div>
+      <div class="field"><label>Block</label><input name="block" type="text" required placeholder="Ashta"></div>
+      <div class="field"><label>Emergency number</label><input name="emergency_number" type="text" value="108"></div>
+      <div class="field"><label>Confirm window (s)</label><input name="confirm_window_sec" type="number" min="30" placeholder="{{ default_window }}"></div>
+      <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn" type="submit">Add region</button></div>
+    </form>
+  </div>
+
+  {% for r in regions %}
+  <div class="card mb1">
+    <div class="flex-between">
+      <div>
+        <strong style="font-size:1.05rem">{{ r.label }}</strong>
+        {% if not r.is_active %}<span class="chip neutral">inactive</span>{% endif %}
+        <div class="small muted">
+          Emergency number: <span class="mono">{{ r.emergency_number }}</span> ·
+          confirm window: {{ r.confirm_window_sec or default_window }}s
+        </div>
+      </div>
+    </div>
+
+    <form method="post" action="/admin/regions/{{ r.id }}" class="form-row mt1">
+      <div class="field"><label>Emergency number</label><input name="emergency_number" type="text" value="{{ r.emergency_number }}"></div>
+      <div class="field"><label>Confirm window (s)</label><input name="confirm_window_sec" type="number" min="30" value="{{ r.confirm_window_sec or '' }}" placeholder="{{ default_window }}"></div>
+      <div class="field" style="flex:0">
+        <label>Active</label>
+        <label class="flex small" style="font-weight:500"><input type="checkbox" name="is_active" style="width:auto" {{ "checked" if r.is_active }}> routing live</label>
+      </div>
+      <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn secondary" type="submit">Save</button></div>
+    </form>
+
+    <div class="panel-title mt1">{{ icon("routes") }} Backup chain (track B, in priority order)</div>
+    <div class="table-wrap mb1">
+      <table class="data">
+        <thead><tr><th>Priority</th><th>Name</th><th>Kind</th><th>Phone</th><th>Active</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          {% for c in r.contacts %}
+          <tr>
+            <td class="num"><input form="cf-{{ c.id }}" name="priority" type="number" value="{{ c.priority }}" style="width:70px"></td>
+            <td>{{ c.name }}</td>
+            <td><span class="chip neutral">{{ c.kind }}</span></td>
+            <td><input form="cf-{{ c.id }}" name="phone" type="text" value="{{ c.phone }}" style="width:140px"></td>
+            <td><input form="cf-{{ c.id }}" type="checkbox" name="is_active" {{ "checked" if c.is_active }}></td>
+            <td class="small faint">{{ c.notes or "" }}</td>
+            <td><button form="cf-{{ c.id }}" class="btn ghost" type="submit">Save</button></td>
+          </tr>
+          {% else %}
+          <tr><td colspan="7" class="faint">No backup contacts — emergencies in this region will raise an operator alert immediately on track B.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% for c in r.contacts %}
+      <form id="cf-{{ c.id }}" method="post" action="/admin/contacts/{{ c.id }}"></form>
+      {% endfor %}
+    </div>
+
+    <form method="post" action="/admin/regions/{{ r.id }}/contacts" class="form-row">
+      <div class="field"><label>Name</label><input name="name" type="text" required placeholder="Sunita Verma (ASHA)"></div>
+      <div class="field"><label>Kind</label>
+        <select name="kind">
+          {% for k in kinds %}<option value="{{ k }}">{{ k }}</option>{% endfor %}
+        </select>
+      </div>
+      <div class="field"><label>Phone</label><input name="phone" type="text" required placeholder="9425XXXXXX"></div>
+      <div class="field"><label>Priority</label><input name="priority" type="number" value="100"></div>
+      <div class="field"><label>Notes</label><input name="notes" type="text" placeholder="covers Ward 1–5, has motorcycle"></div>
+      <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn secondary" type="submit">Add contact</button></div>
+    </form>
+  </div>
+  {% else %}
+    <div class="notice warn">No regions configured yet. Add one above, or run the seed script.</div>
+  {% endfor %}
+</div>
+{% endblock %}

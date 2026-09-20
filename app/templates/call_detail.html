@@ -1,0 +1,133 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Call {{ call.ref_code }} — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <p class="small"><a href="{{ back }}">&larr; Back</a></p>
+
+  <div class="flex-between mb1">
+    <div>
+      <p class="section-label mb0">Call record · full audit trail</p>
+      <h1 class="mt0 mb0 mono" style="font-size:1.7rem">{{ call.ref_code }}</h1>
+    </div>
+    {% if result %}
+      <span class="chip {{ result.tier }}" style="font-size:0.9rem">{{ result.tier }}</span>
+    {% endif %}
+  </div>
+
+  <div class="grid-2" style="align-items:start">
+    <div>
+      <div class="card mb1">
+        <div class="panel-title">{{ icon("phone") }} Session</div>
+        <div class="table-wrap">
+          <table class="data">
+            <tbody>
+              <tr><th style="width:38%">Channel</th><td>{{ call.channel }}</td></tr>
+              <tr><th>Caller</th><td class="mono">{{ call.caller_phone | mask_phone }}</td></tr>
+              <tr><th>Area</th><td>{{ call.region.label if call.region else "not identified" }}</td></tr>
+              <tr><th>Language</th><td>{{ call.language or "—" }}</td></tr>
+              <tr><th>Track</th><td>{{ call.track or "—" }}</td></tr>
+              <tr><th>Started</th><td>{{ call.started_at | ist }}</td></tr>
+              <tr><th>Ended</th><td>{{ call.ended_at | ist }}</td></tr>
+              <tr><th>Status</th><td>{{ call.status }}</td></tr>
+              {% if result %}
+              <tr><th>Engine</th><td class="mono">v{{ result.engine_version }}{% if result.fail_safe %} · <strong style="color:var(--emergency)">FAIL-SAFE PATH</strong>{% endif %}</td></tr>
+              <tr><th>Unclear answers</th><td>{{ result.unclear_count }}</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="panel-title">{{ icon("list") }} Questions &amp; answers</div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>#</th><th>Question</th><th>Answer</th><th>At</th></tr></thead>
+            <tbody>
+              {% for a in answers %}
+              <tr>
+                <td class="num">{{ loop.index }}</td>
+                <td>
+                  {{ a.question_en }}
+                  {% if a.severity == "red" %}<span class="chip emergency" style="font-size:0.6rem">red</span>
+                  {% else %}<span class="chip urgent" style="font-size:0.6rem">amber</span>{% endif %}
+                </td>
+                <td>
+                  {% if a.value == "yes" %}<strong style="color:var(--emergency)">YES</strong>
+                  {% elif a.value == "no" %}no
+                  {% else %}<strong style="color:var(--urgent)">UNCLEAR</strong>{% endif %}
+                  {% if a.ambiguous %}<span class="faint small" title="recorded by the safety default (silence / invalid input / don't know)">⚠︎ default</span>{% endif %}
+                  {% if a.repeats %}<span class="faint small">({{ a.repeats }} repeats)</span>{% endif %}
+                </td>
+                <td class="nowrap">{{ a.at }}</td>
+              </tr>
+              {% endfor %}
+              {% if not answers %}
+              <tr><td colspan="4" class="faint">No answers recorded.</td></tr>
+              {% endif %}
+            </tbody>
+          </table>
+        </div>
+        {% if result %}
+        <p class="small muted mt1 mb0">
+          Flagged danger signs:
+          {% if result.flagged %}<strong>{{ result.flagged | join(", ") }}</strong>
+          {% else %}none{% endif %}
+        </p>
+        {% endif %}
+      </div>
+    </div>
+
+    <div>
+      {% if case %}
+      <div class="card mb1">
+        <div class="panel-title">{{ icon("routes") }} Dispatch timeline — case #{{ case.id }}
+          <span class="chip {{ 'confirmed' if case.status == 'confirmed' else case.status }} right">{{ case.status }}</span>
+        </div>
+        <div class="table-wrap">
+          <table class="data">
+            <thead><tr><th>When</th><th>Track</th><th>Action</th><th>Contact</th><th>Detail</th></tr></thead>
+            <tbody>
+              {% for ev in timeline %}
+              <tr>
+                <td class="nowrap">{{ ev.at }}</td>
+                <td>{{ ev.track }}</td>
+                <td>
+                  {% if ev.action == "confirmed" %}<strong style="color:var(--safe)">confirmed</strong>
+                  {% elif ev.action == "timeout" %}<strong style="color:var(--urgent)">timeout</strong>
+                  {% elif ev.action in ("exhausted", "operator_alert") %}<strong style="color:var(--emergency)">{{ ev.action }}</strong>
+                  {% else %}{{ ev.action }}{% endif %}
+                  {% if ev.attempt %}<span class="faint small">#{{ ev.attempt }}</span>{% endif %}
+                </td>
+                <td>{{ ev.contact }}{% if ev.phone %} <span class="faint mono small">{{ ev.phone }}</span>{% endif %}</td>
+                <td class="small faint">{{ ev.detail }}</td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+        <p class="small muted mt1 mb0">
+          Ambulance confirmed: {{ case.ambulance_confirmed_at | ist("%H:%M:%S") }} ·
+          Backup confirmed: {{ case.backup_confirmed_at | ist("%H:%M:%S") }}
+        </p>
+      </div>
+      {% endif %}
+
+      <div class="card">
+        <div class="panel-title">{{ icon("clock") }} Caller-facing status log</div>
+        {% if statuses %}
+        <ul class="status-feed">
+          {% for key, at, kind in statuses %}
+            <li><span class="at">{{ at }}</span> <span class="mono small">{{ key }}</span></li>
+          {% endfor %}
+        </ul>
+        {% else %}
+          <p class="small muted mb0">No status messages (call did not reach the emergency tier).</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,169 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Administrator dashboard — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="flex-between">
+    <div>
+      <p class="section-label mb0">Administrator · aggregate &amp; anonymised</p>
+      <h1 class="mt0 mb0" style="font-size:1.6rem">Service dashboard — last {{ days }} days</h1>
+    </div>
+    <div class="flex">
+      <form method="get" action="/admin" class="flex">
+        <select name="days" onchange="this.form.submit()" style="width:auto">
+          {% for d in (7, 30, 90, 365) %}
+            <option value="{{ d }}" {{ "selected" if d == days }}>{{ d }} days</option>
+          {% endfor %}
+        </select>
+      </form>
+      <a class="btn secondary" href="/admin/calls">{{ icon("log") }} Call log</a>
+      <a class="btn secondary" href="/admin/regions">{{ icon("pin") }} Regions &amp; routing</a>
+    </div>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat"><div class="v">{{ totals.calls }}</div><div class="k">Total calls</div></div>
+    <div class="stat emergency"><div class="v">{{ totals.emergency }}</div><div class="k">Emergency tier</div></div>
+    <div class="stat urgent"><div class="v">{{ totals.urgent }}</div><div class="k">See-worker tier</div></div>
+    <div class="stat safe"><div class="v">{{ totals.reassurance }}</div><div class="k">Likely-fine tier</div></div>
+    <div class="stat"><div class="v">{{ totals.abandoned }}</div><div class="k">Abandoned pre-triage</div></div>
+  </div>
+
+  <!-- The uncomfortable metric, front and centre by design -->
+  <div class="card mb2" style="border-left:6px solid var(--emergency)">
+    <div class="panel-title">{{ icon("warning") }} Did emergencies actually get help? (dispatch outcomes)</div>
+    <div class="grid-3">
+      <div class="metric-callout">
+        <div class="big" style="color:var(--safe)">
+          {{ dispatch.confirm_rate if dispatch.confirm_rate is not none else "—" }}{% if dispatch.confirm_rate is not none %}%{% endif %}
+        </div>
+        <div class="k small muted">confirmed within the first window ({{ dispatch.confirmed_in_window }} of {{ dispatch.total_cases }} cases)</div>
+      </div>
+      <div class="metric-callout">
+        <div class="big" style="color:var(--urgent)">{{ dispatch.escalated }}</div>
+        <div class="k small muted">cases that hit at least one timeout and had to escalate</div>
+      </div>
+      <div class="metric-callout">
+        <div class="big" style="color:var(--emergency)">{{ dispatch.exhausted }}</div>
+        <div class="k small muted">cases where the whole chain was exhausted without confirmation</div>
+      </div>
+    </div>
+    <p class="note small muted mt1 mb0">
+      {% if dispatch.median_confirm_sec is not none %}
+        Median time to first confirmation: <strong>{{ (dispatch.median_confirm_sec / 60) | round(1) }} min</strong>.
+      {% else %}
+        No confirmations recorded in this period yet.
+      {% endif %}
+      These rates are a direct signal about emergency-transport performance in
+      each area. A low confirmation rate is a finding to act on — this dashboard
+      deliberately refuses to bury it under "calls handled".
+    </p>
+  </div>
+
+  <div class="grid-2" style="align-items:start">
+    <div class="card mb1">
+      <div class="panel-title">{{ icon("chart") }} Triage tier distribution</div>
+      {% set total_t = (tier_counts.get('emergency', 0) + tier_counts.get('urgent', 0) + tier_counts.get('reassurance', 0)) or 1 %}
+      <div class="bar-row">
+        <span>Emergency</span>
+        <span class="bar-track"><span class="bar-fill emergency" style="width: {{ (100 * tier_counts.get('emergency', 0) / total_t) | round | int }}%"></span></span>
+        <span class="n">{{ tier_counts.get('emergency', 0) }}</span>
+      </div>
+      <div class="bar-row">
+        <span>See a health worker</span>
+        <span class="bar-track"><span class="bar-fill urgent" style="width: {{ (100 * tier_counts.get('urgent', 0) / total_t) | round | int }}%"></span></span>
+        <span class="n">{{ tier_counts.get('urgent', 0) }}</span>
+      </div>
+      <div class="bar-row">
+        <span>Likely fine</span>
+        <span class="bar-track"><span class="bar-fill safe" style="width: {{ (100 * tier_counts.get('reassurance', 0) / total_t) | round | int }}%"></span></span>
+        <span class="n">{{ tier_counts.get('reassurance', 0) }}</span>
+      </div>
+      <p class="small muted mt1 mb0">Channels: {% for ch, n in channels.items() %}{{ ch }} ({{ n }}){{ " · " if not loop.last }}{% endfor %}</p>
+    </div>
+
+    <div class="card mb1">
+      <div class="panel-title">{{ icon("shield") }} Recent incidents (fail-safes, exhaustions, alerts)</div>
+      {% if incidents %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead><tr><th>When</th><th>Kind</th><th>Detail</th></tr></thead>
+          <tbody>
+            {% for i in incidents %}
+            <tr>
+              <td class="nowrap">{{ i.created_at | ist("%d %b, %H:%M") }}</td>
+              <td><span class="chip {{ 'emergency' if i.kind in ('dispatch_exhausted', 'engine_fail_safe') else 'neutral' }}">{{ i.kind }}</span></td>
+              <td class="small faint">{{ i.detail or "" }}</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="small muted mb0">No incidents recorded. The engine fail-safe has not fired.</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <div class="card mb1">
+    <div class="panel-title">{{ icon("pin") }} By region</div>
+    <div class="table-wrap">
+      <table class="data">
+        <thead>
+          <tr>
+            <th>Region</th><th>Calls</th><th>Emergency</th><th>Urgent</th><th>Fine</th>
+            <th>Dispatch cases</th><th>Confirmed</th><th>Exhausted</th><th>Confirm rate</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for row in region_rows %}
+          <tr>
+            <td>{{ row.region.label }}</td>
+            <td class="num">{{ row.calls }}</td>
+            <td class="num">{{ row.emergency }}</td>
+            <td class="num">{{ row.urgent }}</td>
+            <td class="num">{{ row.reassurance }}</td>
+            <td class="num">{{ row.dispatch_cases }}</td>
+            <td class="num">{{ row.confirmed }}</td>
+            <td class="num">{{ row.exhausted }}</td>
+            <td>
+              {% if row.dispatch_cases %}
+                {% set rate = (100 * row.confirmed / row.dispatch_cases) | round | int %}
+                <span class="bar-track" style="display:inline-block;width:70px;vertical-align:middle">
+                  <span class="bar-fill {{ 'safe' if rate >= 70 else ('urgent' if rate >= 40 else 'emergency') }}" style="width:{{ rate }}%"></span>
+                </span> <span class="num small">{{ rate }}%</span>
+              {% else %}—{% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="panel-title">{{ icon("phone") }} Recent emergency-tier calls</div>
+    {% if recent_emergencies %}
+    <div class="table-wrap">
+      <table class="data">
+        <thead><tr><th>Ref</th><th>When</th><th>Area</th><th>Dispatch</th><th>Confirmed</th></tr></thead>
+        <tbody>
+          {% for c in recent_emergencies %}
+          <tr>
+            <td><a class="mono" href="/admin/calls/{{ c.ref_code }}">{{ c.ref_code }}</a></td>
+            <td class="nowrap">{{ c.started_at | ist("%d %b, %H:%M") }}</td>
+            <td>{{ c.region.label if c.region else "—" }}</td>
+            <td>{% if c.dispatch %}<span class="chip {{ c.dispatch.status }}">{{ c.dispatch.status }}</span>{% else %}—{% endif %}</td>
+            <td class="nowrap">{{ c.dispatch.confirmed_at | ist("%H:%M") if c.dispatch and c.dispatch.confirmed_at else "—" }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+      <p class="small muted mb0">No emergency-tier calls in this period.</p>
+    {% endif %}
+  </div>
+</div>
+{% endblock %}

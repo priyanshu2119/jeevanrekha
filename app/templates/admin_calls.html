@@ -1,0 +1,67 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Call log — JeevanRekha admin{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <p class="small"><a href="/admin">&larr; Dashboard</a></p>
+  <p class="section-label mb0">Administrator</p>
+  <h1 class="mt0" style="font-size:1.6rem">Call log <span class="faint small">({{ total }} records)</span></h1>
+
+  <form method="get" action="/admin/calls" class="form-row card mb1">
+    <div class="field">
+      <label for="tier">Outcome tier</label>
+      <select id="tier" name="tier">
+        <option value="">all</option>
+        {% for t in ("emergency", "urgent", "reassurance") %}
+          <option value="{{ t }}" {{ "selected" if tier == t }}>{{ t }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field">
+      <label for="region_id">Region</label>
+      <select id="region_id" name="region_id">
+        <option value="0">all</option>
+        {% for r in regions %}
+          <option value="{{ r.id }}" {{ "selected" if region_id == r.id }}>{{ r.label }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="field" style="flex:0">
+      <label>&nbsp;</label>
+      <button class="btn" type="submit">Filter</button>
+    </div>
+  </form>
+
+  <div class="table-wrap">
+    <table class="data">
+      <thead>
+        <tr><th>Ref</th><th>Started</th><th>Channel</th><th>Area</th><th>Lang</th><th>Track</th><th>Tier</th><th>Dispatch</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        {% for c in calls %}
+        <tr>
+          <td><a class="mono" href="/admin/calls/{{ c.ref_code }}">{{ c.ref_code }}</a></td>
+          <td class="nowrap">{{ c.started_at | ist("%d %b, %H:%M") }}</td>
+          <td>{{ c.channel }}</td>
+          <td>{{ c.region.label if c.region else "—" }}</td>
+          <td>{{ c.language or "—" }}</td>
+          <td>{{ c.track or "—" }}</td>
+          <td>{% if c.result %}<span class="chip {{ c.result.tier }}">{{ c.result.tier }}</span>{% else %}—{% endif %}</td>
+          <td>{% if c.dispatch %}<span class="chip {{ c.dispatch.status }}">{{ c.dispatch.status }}</span>{% else %}—{% endif %}</td>
+          <td>{{ c.status }}</td>
+        </tr>
+        {% else %}
+        <tr><td colspan="9" class="faint">No calls match these filters.</td></tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  <div class="flex mt1">
+    {% if page > 1 %}<a class="btn ghost" href="?tier={{ tier }}&region_id={{ region_id }}&page={{ page - 1 }}">← Newer</a>{% endif %}
+    <span class="small muted">Page {{ page }} of {{ pages }}</span>
+    {% if page < pages %}<a class="btn ghost" href="?tier={{ tier }}&region_id={{ region_id }}&page={{ page + 1 }}">Older →</a>{% endif %}
+  </div>
+</div>
+{% endblock %}

@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}Staff sign in — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap-narrow" style="max-width:460px; padding-top:3rem">
+  <div class="card">
+    <p class="section-label mb0">Staff access</p>
+    <h1 class="mt0" style="font-size:1.5rem">Sign in</h1>
+    <p class="small muted">
+      ASHA workers see their own area's call log. Administrators see
+      aggregate, anonymised dashboards and routing configuration.
+      Operators get the dispatch desk.
+    </p>
+
+    {% if error %}
+      <div class="notice bad">That username and password did not match. Try again.</div>
+    {% endif %}
+
+    <form method="post" action="/login">
+      <input type="hidden" name="next" value="{{ next }}">
+      <div class="field">
+        <label for="username">Username</label>
+        <input id="username" name="username" type="text" autocomplete="username" required autofocus>
+      </div>
+      <div class="field">
+        <label for="password">Password</label>
+        <input id="password" name="password" type="password" autocomplete="current-password" required>
+      </div>
+      <button class="btn btn-big" type="submit">{{ icon("user") }} Sign in</button>
+    </form>
+  </div>
+
+  <div class="notice mt1 small">
+    Fresh install? Run <span class="mono">scripts/seed.py</span> to create the
+    demo regions, contacts and staff accounts (credentials listed in the
+    README).
+  </div>
+</div>
+{% endblock %}

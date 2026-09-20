@@ -1,0 +1,104 @@
+{% extends "base.html" %}
+{% from "icons.html" import icon %}
+{% block title %}ASHA call log — JeevanRekha{% endblock %}
+
+{% block content %}
+<div class="wrap">
+  <div class="flex-between">
+    <div>
+      <p class="section-label mb0">ASHA worker view</p>
+      <h1 class="mt0 mb0" style="font-size:1.6rem">Namaste, {{ user.full_name }}</h1>
+      <p class="small muted mt0">
+        {% if region %}Your area: <strong>{{ region.label }}</strong> · emergency number {{ region.emergency_number }}
+        {% else %}No region assigned — showing all calls (admin view).{% endif %}
+      </p>
+    </div>
+    <a class="btn secondary" href="/sim">{{ icon("routes") }} Dispatch desk</a>
+  </div>
+
+  <div class="stat-strip">
+    <div class="stat"><div class="v">{{ stats.total_30d or 0 }}</div><div class="k">Calls · last 30 days</div></div>
+    <div class="stat emergency"><div class="v">{{ stats.emergency or 0 }}</div><div class="k">Emergency tier</div></div>
+    <div class="stat urgent"><div class="v">{{ stats.urgent or 0 }}</div><div class="k">See-health-worker tier</div></div>
+    <div class="stat safe"><div class="v">{{ stats.reassurance or 0 }}</div><div class="k">Likely-fine tier</div></div>
+  </div>
+
+  <div class="grid-2" style="align-items:start">
+    <div class="card">
+      <div class="panel-title">{{ icon("log") }} Calls in your area</div>
+      {% if calls %}
+      <div class="table-wrap">
+        <table class="data">
+          <thead>
+            <tr><th>Ref</th><th>When</th><th>Caller</th><th>Track</th><th>Outcome</th><th>Dispatch</th></tr>
+          </thead>
+          <tbody>
+            {% for c in calls %}
+            <tr>
+              <td><a class="mono" href="/asha/calls/{{ c.ref_code }}">{{ c.ref_code }}</a></td>
+              <td class="nowrap">{{ c.started_at | ist("%d %b, %H:%M") }}</td>
+              <td class="mono">{{ c.caller_phone | mask_phone }}</td>
+              <td>{{ c.track or "—" }}</td>
+              <td>
+                {% if c.result %}<span class="chip {{ c.result.tier }}">{{ c.result.tier }}</span>
+                {% elif c.status == "abandoned" %}<span class="chip neutral">abandoned</span>
+                {% else %}<span class="chip neutral">open</span>{% endif %}
+              </td>
+              <td>
+                {% if c.dispatch %}
+                  <span class="chip {{ 'confirmed' if c.dispatch.status == 'confirmed' else ('exhausted' if c.dispatch.status == 'exhausted' else 'waiting') }}">{{ c.dispatch.status }}</span>
+                {% else %}—{% endif %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% else %}
+        <p class="small muted mb0">No calls logged in your area yet.</p>
+      {% endif %}
+    </div>
+
+    <div>
+      <div class="card mb1">
+        <div class="panel-title">{{ icon("warning") }} Repeat callers — worth a follow-up visit</div>
+        {% if repeat_callers %}
+          <div class="table-wrap">
+            <table class="data">
+              <thead><tr><th>Caller</th><th>Calls</th><th>Last call</th></tr></thead>
+              <tbody>
+                {% for r in repeat_callers %}
+                <tr>
+                  <td class="mono">{{ r.phone | mask_phone }}</td>
+                  <td class="num">{{ r.count }}</td>
+                  <td class="nowrap">{{ r.last | ist("%d %b, %H:%M") }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+          <p class="small muted">Numbers are masked; open a call to see the full record for follow-up.</p>
+        {% else %}
+          <p class="small muted mb0">No family has called more than once recently.</p>
+        {% endif %}
+      </div>
+
+      <div class="card">
+        <div class="panel-title">{{ icon("chart") }} Danger signs seen in your area (30 days)</div>
+        {% if sign_counts %}
+          {% set max_n = sign_counts[0].count %}
+          {% for s in sign_counts %}
+          <div class="bar-row">
+            <span>{{ s.label }}</span>
+            <span class="bar-track"><span class="bar-fill emergency" style="width: {{ (100 * s.count / max_n) | round | int }}%"></span></span>
+            <span class="n">{{ s.count }}</span>
+          </div>
+          {% endfor %}
+        {% else %}
+          <p class="small muted mb0">No danger signs flagged in this period.</p>
+        {% endif %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock %}
