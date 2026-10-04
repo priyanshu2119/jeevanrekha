@@ -244,6 +244,10 @@ class CallSession(Base):
     # Optional. A frightened caller must not be forced to identify herself
     # to get help; DPDP-minimal by design.
     caller_phone: Mapped[str | None] = mapped_column(String(32), nullable=True, index=True)
+    # Provider call identifier (Exotel/Twilio CallSid) for live phone calls.
+    # Exact-match lookup key for webhook events on an in-flight call; phone
+    # tail matching is only the fallback for the first webhook of a call.
+    provider_call_sid: Mapped[str | None] = mapped_column(String(64), nullable=True, index=True)
     region_id: Mapped[int | None] = mapped_column(ForeignKey("regions.id"), index=True)
     language: Mapped[str | None] = mapped_column(String(8), nullable=True)
     track: Mapped[str | None] = mapped_column(String(16), nullable=True)

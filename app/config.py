@@ -74,8 +74,11 @@ class Settings:
     # duplicate would be recorded as an answer to the NEXT question -- an
     # unintended "no" could under-escalate, which is the dangerous direction.
     # Identical (CallSid, digit) pairs inside this window are ignored; the
-    # caller simply hears the prompt again and re-presses (fail-safe).
-    WEBHOOK_DEDUP_SEC = int(os.environ.get("JR_WEBHOOK_DEDUP", "8"))
+    # caller simply hears the prompt again and re-presses (fail-safe). Kept
+    # short (4s) because a distressed caller may legitimately press the same
+    # digit for consecutive questions within a few seconds -- a dropped
+    # repeat only ever costs time, never safety.
+    WEBHOOK_DEDUP_SEC = int(os.environ.get("JR_WEBHOOK_DEDUP", "4"))
 
     # --- rate limiting (per client IP, sliding window, per worker process) ----
     RATE_LIMIT_ENABLED = _env_bool("JR_RATE_LIMIT_ENABLED", True)
@@ -119,6 +122,11 @@ class Settings:
     EXOTEL_TOKEN = os.environ.get("JR_EXOTEL_TOKEN", "")
     EXOTEL_SUBDOMAIN = os.environ.get("JR_EXOTEL_SUBDOMAIN", "api")
     EXOTEL_FROM = os.environ.get("JR_EXOTEL_FROM", "")
+    # DLT (TRAI) compliance for SMS in India: messages must reference a
+    # registered content template and Principal Entity. Exotel's Sms/send
+    # accepts both; without them carriers drop the SMS.
+    EXOTEL_DLT_TEMPLATE_ID = os.environ.get("JR_EXOTEL_DLT_TEMPLATE", "")
+    EXOTEL_DLT_ENTITY_ID = os.environ.get("JR_EXOTEL_DLT_ENTITY", "")
     TWILIO_SID = os.environ.get("JR_TWILIO_SID", "")
     TWILIO_TOKEN = os.environ.get("JR_TWILIO_TOKEN", "")
     TWILIO_FROM = os.environ.get("JR_TWILIO_FROM", "")
@@ -151,6 +159,12 @@ class Settings:
                 "webhook authentication: set JR_WEBHOOK_SECRET and/or "
                 "JR_WEBHOOK_CIDRS. Unauthenticated webhooks would let anyone "
                 "on the internet confirm or decline a real emergency dispatch."
+            )
+        if self.TELEPHONY_PROVIDER != "simulated" and not self.PUBLIC_BASE_URL:
+            raise RuntimeError(
+                "JR_ENV=production with a real telephony provider but no "
+                "JR_PUBLIC_BASE_URL: ExoML/TwiML action URLs and outbound "
+                "call flows must be absolute and publicly reachable."
             )
         if not self.COOKIE_SECURE:
             log.warning("JR_COOKIE_SECURE is off in production; session cookies "

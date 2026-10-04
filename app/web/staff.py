@@ -31,6 +31,7 @@ from ..models import (
     DispatchStatus,
     IncidentLog,
     Region,
+    RegionPhoneNumber,
     Role,
     Tier,
     TriageResult,
@@ -449,10 +450,15 @@ def admin_regions(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login?next=/admin/regions", status_code=303)
     regions = db.scalars(select(Region).order_by(Region.state, Region.district, Region.block)).all()
     kinds = [k.value for k in ContactKind]
+    numbers = db.scalars(select(RegionPhoneNumber).order_by(RegionPhoneNumber.id)).all()
+    numbers_by_region: dict[int, list[RegionPhoneNumber]] = {}
+    for n in numbers:
+        numbers_by_region.setdefault(n.region_id, []).append(n)
     csrf_token = csrf_token_for(request)
     response = TEMPLATES().TemplateResponse(request, "admin_regions.html", {
         "user": user, "regions": regions, "kinds": kinds,
         "default_window": settings.DISPATCH_CONFIRM_WINDOW_SEC,
+        "numbers_by_region": numbers_by_region,
         "csrf_token": csrf_token,
     })
     if settings.CSRF_COOKIE not in request.cookies:
@@ -555,4 +561,55 @@ def admin_contact_update(
     contact.priority = int(priority) if priority.strip().isdigit() else contact.priority
     contact.is_active = is_active == "on"
     db.commit()
+    return RedirectResponse("/admin/regions", status_code=303)
+
+
+# --------------------------------------------------------------------------
+# Helpline number (DID) -> region mapping
+# --------------------------------------------------------------------------
+# Real inbound calls carry no region information other than the number the
+# caller dialled. Without a DID mapped to the region, a real phone call gets
+# no Track B backup chain -- so this mapping is routing configuration, not
+# cosmetics, and lives behind the same admin auth + CSRF as the rest.
+
+@router.post("/admin/regions/{region_id}/numbers", dependencies=[Depends(require_csrf)])
+def admin_region_number_create(
+    region_id: int,
+    request: Request,
+    provider: str = Form("exotel"),
+    phone_number: str = Form(...),
+    notes: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = _require(request, db, Role.admin)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    region = db.get(Region, region_id)
+    number = phone_number.strip()
+    if region is None or not number:
+        return RedirectResponse("/admin/regions", status_code=303)
+    db.add(RegionPhoneNumber(
+        region_id=region.id,
+        provider=provider if provider in ("exotel", "twilio") else "exotel",
+        phone_number=number,
+        notes=notes.strip() or None,
+    ))
+    db.commit()
+    return RedirectResponse("/admin/regions", status_code=303)
+
+
+@router.post("/admin/numbers/{number_id}", dependencies=[Depends(require_csrf)])
+def admin_region_number_toggle(
+    number_id: int,
+    request: Request,
+    is_active: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    user = _require(request, db, Role.admin)
+    if user is None:
+        return RedirectResponse("/login", status_code=303)
+    number = db.get(RegionPhoneNumber, number_id)
+    if number is not None:
+        number.is_active = is_active == "on"
+        db.commit()
     return RedirectResponse("/admin/regions", status_code=303)

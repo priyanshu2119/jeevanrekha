@@ -25,12 +25,28 @@ import abc
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime
+from urllib.parse import urlencode
 
 import httpx
 
 from ..config import settings
 
 log = logging.getLogger("jr.telephony")
+
+
+def webhook_url(path: str, **params) -> str:
+    """Absolute URL to one of our own webhook endpoints.
+
+    Providers fetch these URLs from their side, so they must be absolute and
+    publicly reachable (JR_PUBLIC_BASE_URL). The shared webhook secret rides
+    along as ?token= when configured -- Exotel dashboard/ExoML URLs cannot
+    attach custom headers, and our webhook auth accepts either form.
+    """
+    base = settings.PUBLIC_BASE_URL.rstrip("/")
+    query = {k: str(v) for k, v in params.items() if v not in (None, "")}
+    if settings.WEBHOOK_SECRET:
+        query["token"] = settings.WEBHOOK_SECRET
+    return f"{base}{path}" + (f"?{urlencode(query)}" if query else "")
 
 
 @dataclass
@@ -109,10 +125,23 @@ class SimulatedProvider(TelephonyProvider):
 class ExotelProvider(TelephonyProvider):
     """Production adapter for Exotel (India-first CPaaS).
 
-    Uses the Exotel v1 REST API: a "connect" call dials the responder and
-    plays a TTS message; DTMF input from the responder (1 = confirmed) is
-    delivered to our webhook, which calls dispatch.confirm_from_provider().
-    Requires JR_EXOTEL_SID / JR_EXOTEL_TOKEN in the environment.
+    Outbound dispatch alerts use the documented "connect a number to a call
+    flow" pattern of ``POST /v1/Accounts/{sid}/Calls/connect.json``:
+
+    * ``From``     -- the number being CALLED (the responder),
+    * ``CallerId`` -- our ExoPhone (what the responder sees),
+    * ``Url``      -- an endpoint of ours that serves ExoML; Exotel fetches
+                      it when the responder answers and executes the verbs
+                      (Say the alert, Gather "press 1 to confirm"),
+    * ``StatusCallback`` -- Exotel posts the terminal call status (completed
+                      / busy / no-answer / failed) so a responder who never
+                      picks up escalates IMMEDIATELY instead of burning the
+                      whole confirmation window.
+
+    The responder's DTMF choice lands on /webhooks/responder-confirm with the
+    exact event id, which calls dispatch.confirm()/decline().
+    Requires JR_EXOTEL_SID / JR_EXOTEL_TOKEN / JR_EXOTEL_FROM /
+    JR_PUBLIC_BASE_URL in the environment.
     """
 
     name = "exotel"
@@ -123,26 +152,48 @@ class ExotelProvider(TelephonyProvider):
         self.subdomain = settings.EXOTEL_SUBDOMAIN
         self.base = f"https://{self.subdomain}.exotel.com/v1/Accounts/{self.sid}"
 
-    def place_dispatch_alert(self, *, to_phone: str, message: str, **kwargs) -> ProviderResult:
-        if not (self.sid and self.token):
-            return ProviderResult(ok=False, detail="exotel credentials not configured")
+    def _missing_config(self) -> list[str]:
+        return [name for name, value in (
+            ("JR_EXOTEL_SID", self.sid),
+            ("JR_EXOTEL_TOKEN", self.token),
+            ("JR_EXOTEL_FROM", settings.EXOTEL_FROM),
+            ("JR_PUBLIC_BASE_URL", settings.PUBLIC_BASE_URL),
+        ) if not value]
+
+    def place_dispatch_alert(self, *, to_phone: str, message: str,
+                             event_id: int | None = None, **kwargs) -> ProviderResult:
+        missing = self._missing_config()
+        if missing:
+            return ProviderResult(ok=False,
+                                  detail=f"exotel not configured: {', '.join(missing)}")
+        flow_url = webhook_url("/webhooks/exotel/responder-alert", event_id=event_id)
+        status_url = webhook_url("/webhooks/exotel/call-status", event_id=event_id)
         try:
             resp = httpx.post(
-                f"{self.base}/Calls/connect",
+                f"{self.base}/Calls/connect.json",
                 auth=(self.sid, self.token),
                 data={
-                    "From": settings.TWILIO_FROM or "08012345678",
-                    "To": to_phone,
-                    "CallerId": settings.TWILIO_FROM or "08012345678",
-                    "Url": message,  # TTS XML/TwiML served by our webhook app
+                    "From": to_phone,                    # the responder being called
+                    "CallerId": settings.EXOTEL_FROM,    # our ExoPhone
+                    "Url": flow_url,                     # ExoML: Say + Gather
+                    "StatusCallback": status_url,
                 },
                 timeout=15.0,
             )
             ok = resp.status_code < 300
+            call_sid = None
+            if ok:
+                try:
+                    call_sid = (resp.json().get("Call") or {}).get("Sid")
+                except ValueError:
+                    pass
+            else:
+                log.warning("exotel Calls/connect failed http %s: %s",
+                            resp.status_code, resp.text[:200])
             return ProviderResult(
                 ok=ok,
                 detail=f"exotel http {resp.status_code}",
-                provider_message_id=(resp.json().get("CallSid") if ok else None),
+                provider_message_id=call_sid,
             )
         except httpx.HTTPError as exc:  # network failure must never crash dispatch
             log.warning("exotel call failed: %s", exc)
@@ -151,20 +202,40 @@ class ExotelProvider(TelephonyProvider):
     def send_sms(self, to_phone: str, text: str) -> ProviderResult:
         if not (self.sid and self.token):
             return ProviderResult(ok=False, detail="exotel credentials not configured")
+        data: dict[str, str] = {
+            "From": settings.EXOTEL_FROM or self.sid,
+            "To": to_phone,
+            "Body": text,
+        }
+        # TRAI DLT: Indian carriers drop SMS that do not reference a
+        # registered content template / Principal Entity.
+        if settings.EXOTEL_DLT_TEMPLATE_ID:
+            data["DltTemplateId"] = settings.EXOTEL_DLT_TEMPLATE_ID
+        if settings.EXOTEL_DLT_ENTITY_ID:
+            data["DltEntityId"] = settings.EXOTEL_DLT_ENTITY_ID
         try:
             resp = httpx.post(
-                f"{self.base}/Sms/send",
+                f"{self.base}/Sms/send.json",
                 auth=(self.sid, self.token),
-                data={"From": settings.TWILIO_FROM or "08012345678", "To": to_phone, "Body": text},
+                data=data,
                 timeout=15.0,
             )
-            return ProviderResult(ok=resp.status_code < 300, detail=f"exotel http {resp.status_code}")
+            return ProviderResult(ok=resp.status_code < 300,
+                                  detail=f"exotel http {resp.status_code}")
         except httpx.HTTPError as exc:
+            log.warning("exotel sms failed: %s", exc)
             return ProviderResult(ok=False, detail=f"exotel error: {exc}")
 
 
 class TwilioProvider(TelephonyProvider):
-    """Production adapter for Twilio Programmable Voice (where available)."""
+    """Production adapter for Twilio Programmable Voice.
+
+    NOTE: Twilio cannot serve domestic India-to-India voice (their own India
+    guidelines mark domestic inbound/outbound as N/A), so for the target
+    deployment Exotel is the provider; this adapter exists for deployments
+    where Twilio does hold usable numbers. Outbound alerts fetch TwiML from
+    our /webhooks/twilio/responder-alert endpoint (same Gather pattern).
+    """
 
     name = "twilio"
 
@@ -174,18 +245,34 @@ class TwilioProvider(TelephonyProvider):
         self.from_number = settings.TWILIO_FROM
         self.base = f"https://api.twilio.com/2010-04-01/Accounts/{self.sid}"
 
-    def place_dispatch_alert(self, *, to_phone: str, message: str, **kwargs) -> ProviderResult:
-        if not (self.sid and self.token and self.from_number):
-            return ProviderResult(ok=False, detail="twilio credentials not configured")
+    def place_dispatch_alert(self, *, to_phone: str, message: str,
+                             event_id: int | None = None, **kwargs) -> ProviderResult:
+        if not (self.sid and self.token and self.from_number and settings.PUBLIC_BASE_URL):
+            return ProviderResult(
+                ok=False,
+                detail="twilio not configured: need JR_TWILIO_SID, JR_TWILIO_TOKEN, "
+                       "JR_TWILIO_FROM and JR_PUBLIC_BASE_URL")
         try:
             resp = httpx.post(
                 f"{self.base}/Calls.json",
                 auth=(self.sid, self.token),
-                data={"To": to_phone, "From": self.from_number, "Twiml": message},
+                data={
+                    "To": to_phone,
+                    "From": self.from_number,
+                    "Url": webhook_url("/webhooks/twilio/responder-alert",
+                                       event_id=event_id),
+                    "StatusCallback": webhook_url("/webhooks/twilio/call-status",
+                                                  event_id=event_id),
+                },
                 timeout=15.0,
             )
             ok = resp.status_code < 300
-            body = resp.json() if ok else {}
+            body = {}
+            if ok:
+                try:
+                    body = resp.json()
+                except ValueError:
+                    body = {}
             return ProviderResult(
                 ok=ok,
                 detail=f"twilio http {resp.status_code}",

@@ -91,6 +91,49 @@
       <div class="field"><label>Notes</label><input name="notes" type="text" placeholder="covers Ward 1–5, has motorcycle"></div>
       <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn secondary" type="submit">Add contact</button></div>
     </form>
+
+    <div class="panel-title mt1">{{ icon("phone") }} Helpline numbers (DIDs routed to this region)</div>
+    <p class="small muted" style="margin:0.25rem 0 0.5rem">
+      A real inbound call resolves its region from the number the caller dialled.
+      Without a DID mapped here, phone callers in this region get no Track B
+      backup chain — only the generic ambulance alert.
+    </p>
+    <div class="table-wrap mb1">
+      <table class="data">
+        <thead><tr><th>Provider</th><th>Number</th><th>Active</th><th>Notes</th><th></th></tr></thead>
+        <tbody>
+          {% for n in numbers_by_region.get(r.id, []) %}
+          <tr>
+            <td><span class="chip neutral">{{ n.provider }}</span></td>
+            <td class="mono">{{ n.phone_number }}</td>
+            <td>{{ "yes" if n.is_active else "no" }}</td>
+            <td class="small faint">{{ n.notes or "" }}</td>
+            <td>
+              <form method="post" action="/admin/numbers/{{ n.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+                <input type="hidden" name="is_active" value="{{ '' if n.is_active else 'on' }}">
+                <button class="btn ghost" type="submit">{{ "Deactivate" if n.is_active else "Activate" }}</button>
+              </form>
+            </td>
+          </tr>
+          {% else %}
+          <tr><td colspan="5" class="faint">No helpline number mapped to this region yet.</td></tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    <form method="post" action="/admin/regions/{{ r.id }}/numbers" class="form-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+      <div class="field"><label>Provider</label>
+        <select name="provider">
+          <option value="exotel">exotel</option>
+          <option value="twilio">twilio</option>
+        </select>
+      </div>
+      <div class="field"><label>Number (as the provider reports it)</label><input name="phone_number" type="text" required placeholder="0801234567"></div>
+      <div class="field"><label>Notes</label><input name="notes" type="text" placeholder="block helpline DID"></div>
+      <div class="field" style="flex:0"><label>&nbsp;</label><button class="btn secondary" type="submit">Add number</button></div>
+    </form>
   </div>
   {% else %}
     <div class="notice warn">No regions configured yet. Add one above, or run the seed script.</div>

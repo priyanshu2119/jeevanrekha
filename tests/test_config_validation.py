@@ -11,6 +11,7 @@ def _production(monkeypatch, **overrides):
     monkeypatch.setattr(settings, "TELEPHONY_PROVIDER", "simulated")
     monkeypatch.setattr(settings, "WEBHOOK_SECRET", "")
     monkeypatch.setattr(settings, "WEBHOOK_ALLOWED_CIDRS", "")
+    monkeypatch.setattr(settings, "PUBLIC_BASE_URL", "https://api.jr.example")
     monkeypatch.setattr(settings, "COOKIE_SECURE", True)
     monkeypatch.setattr(settings, "DATABASE_URL", "postgresql+psycopg://jr:jr@db/jr")
     for k, v in overrides.items():
@@ -43,3 +44,11 @@ class TestValidateRuntime:
     def test_production_simulated_provider_needs_no_webhook_auth(self, monkeypatch):
         _production(monkeypatch, TELEPHONY_PROVIDER="simulated")
         settings.validate_runtime()  # dispatch desk is login-gated instead
+
+    def test_production_real_provider_requires_public_base_url(self, monkeypatch):
+        # ExoML/TwiML action URLs and outbound call flows must be absolute
+        # and publicly reachable -- a real provider cannot call "localhost".
+        _production(monkeypatch, TELEPHONY_PROVIDER="exotel",
+                    WEBHOOK_SECRET="tok", PUBLIC_BASE_URL="")
+        with pytest.raises(RuntimeError, match="PUBLIC_BASE_URL"):
+            settings.validate_runtime()

@@ -269,3 +269,28 @@ class TestRegionConfig:
         }, follow_redirects=True)
         contact = db.query(BackupContact).filter_by(region_id=region.id).first()
         assert contact and contact.priority == 5
+
+
+class TestRegionNumbers:
+    def test_admin_can_add_and_toggle_did(self, client, db, region):
+        from app.models import RegionPhoneNumber
+        _make_user(db, "didadmin", Role.admin)
+        _login(client, "didadmin")
+        r = client.post(f"/admin/regions/{region.id}/numbers", data={
+            "provider": "exotel", "phone_number": "0801234567",
+            "notes": "block helpline", "csrf_token": _csrf(client),
+        }, follow_redirects=True)
+        assert r.status_code == 200
+        n = db.query(RegionPhoneNumber).filter_by(phone_number="0801234567").first()
+        assert n and n.is_active and n.region_id == region.id
+
+        # The regions page lists the mapping (admins must see the plan).
+        page = client.get("/admin/regions")
+        assert "0801234567" in page.text
+
+        # Deactivate: the toggle form posts is_active='' for active rows.
+        client.post(f"/admin/numbers/{n.id}",
+                    data={"is_active": "", "csrf_token": _csrf(client)},
+                    follow_redirects=True)
+        db.refresh(n)
+        assert not n.is_active

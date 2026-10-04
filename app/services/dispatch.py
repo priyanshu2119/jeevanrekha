@@ -71,6 +71,30 @@ def _say(db: Session, session: CallSession, key: str, **params) -> None:
     db.add(StatusMessage(call_id=session.id, kind="status", message_key=key, params=params))
 
 
+def alert_message_text(session: CallSession) -> str:
+    """The voice alert spoken to a responder.
+
+    Shared by the simulated dispatch desk, the real ExoML/TwiML
+    responder-alert endpoints and the SMS supplement, so every channel says
+    exactly the same thing about the same emergency. Plain English by design
+    for now (responders are trained staff); localising it is language-pack
+    content work, tracked separately.
+    """
+    return (
+        f"JeevanRekha emergency dispatch request. Reference {session.ref_code}. "
+        f"Triage: EMERGENCY. Location area: "
+        f"{session.region.label if session.region else 'unknown'}. "
+        f"Press 1 to confirm you are responding. Press 2 if you cannot help."
+    )
+
+
+def alert_sms_text(session: CallSession) -> str:
+    return (
+        f"JeevanRekha EMERGENCY ref {session.ref_code}: maternal/newborn danger sign. "
+        f"Area: {session.region.label if session.region else 'unknown'}. Please respond."
+    )
+
+
 def _add_event(
     db: Session,
     case: DispatchCase,
@@ -135,12 +159,7 @@ def _place_alert(
     )
     db.flush()  # need ev.id for the provider payload
 
-    message = (
-        f"JeevanRekha emergency dispatch request. Reference {session.ref_code}. "
-        f"Triage: EMERGENCY. Location area: "
-        f"{session.region.label if session.region else 'unknown'}. "
-        f"Press 1 to confirm you are responding."
-    )
+    message = alert_message_text(session)
     result = get_provider().place_dispatch_alert(
         to_phone=contact_phone,
         to_name=contact_name,
@@ -163,12 +182,13 @@ def _place_alert(
         _escalate_track(db, case, session, track, failed_event=ev)
         return ev
 
+    if result.provider_message_id:
+        # Audit: tie our event to the provider's call so CDRs, recordings and
+        # status callbacks can be reconciled after the fact.
+        ev.detail = (ev.detail or "") + f" | provider call sid {result.provider_message_id}"
+
     # SMS supplement (real providers deliver; simulated logs).
-    get_provider().send_sms(
-        contact_phone,
-        f"JeevanRekha EMERGENCY ref {session.ref_code}: maternal/newborn danger sign. "
-        f"Area: {session.region.label if session.region else 'unknown'}. Please respond.",
-    )
+    get_provider().send_sms(contact_phone, alert_sms_text(session))
     return ev
 
 
@@ -349,6 +369,40 @@ def decline(db: Session, case: DispatchCase, track: str, *, by: str) -> None:
                    contact_kind=ev.contact_kind, detail=f"declined via {by}")
         _escalate_track(db, case, session, track, from_event=ev, skip_retry=True)
     db.flush()
+
+
+def attempt_failed(db: Session, ev: DispatchEvent, reason: str) -> bool:
+    """The provider reported the outbound alert call itself never connected
+    (busy / no-answer / failed / cancelled, delivered via StatusCallback).
+
+    Escalate IMMEDIATELY instead of burning the confirmation window: there is
+    nobody on the line to confirm. The normal retry semantics apply (one
+    retry at the same contact, then the next link in the chain).
+
+    A ``completed`` call where nobody pressed 1 is NOT a failure -- the
+    responder may have heard the alert and already be moving; the
+    confirmation window still governs that case.
+    """
+    if ev.resolved:
+        return False
+    case = db.get(DispatchCase, ev.case_id)
+    if case is None or case.status in (
+        DispatchStatus.confirmed.value,
+        DispatchStatus.cancelled.value,
+    ):
+        ev.resolved = True
+        return False
+    session = db.get(CallSession, case.call_id)
+    ev.resolved = True
+    ev.detail = (ev.detail or "") + f" | call ended: {reason}"
+    _add_event(db, case, track=ev.track, action=DispatchAction.failed.value,
+               attempt=ev.attempt, contact_id=ev.contact_id,
+               contact_name=ev.contact_name, contact_phone=ev.contact_phone,
+               contact_kind=ev.contact_kind,
+               detail=f"outbound alert call ended: {reason}")
+    _escalate_track(db, case, session, ev.track, from_event=ev)
+    db.flush()
+    return True
 
 
 def cancel(db: Session, case: DispatchCase, reason: str) -> None:
