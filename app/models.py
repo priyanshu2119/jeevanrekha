@@ -21,6 +21,7 @@ from sqlalchemy import (
     JSON,
     Boolean,
     ForeignKey,
+    Index,
     Integer,
     String,
     Text,
@@ -156,6 +157,54 @@ class BackupContact(Base):
     region: Mapped[Region] = relationship(back_populates="contacts")
 
 
+class RegionPhoneNumber(Base):
+    """Maps a provider DID (the number a caller actually dials) to a region.
+
+    Real inbound phone calls carry no region information other than the number
+    the caller dialled. One helpline number per region/block is the most
+    reliable routing signal -- the caller never has to spell out where she is,
+    which matters when she is panicking. Populated by the deployment's
+    numbering plan (admin tooling / seed); consulted by the telephony
+    webhooks when a session is opened.
+    """
+
+    __tablename__ = "region_phone_numbers"
+    __table_args__ = (
+        UniqueConstraint("provider", "phone_number",
+                         name="uq_region_phone_provider_number"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    region_id: Mapped[int] = mapped_column(ForeignKey("regions.id"), index=True)
+    provider: Mapped[str] = mapped_column(String(16), default="exotel")
+    # Store exactly as the provider reports it on the webhook; lookups
+    # normalise to the last ten digits on both sides.
+    phone_number: Mapped[str] = mapped_column(String(32), index=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    region: Mapped[Region] = relationship()
+
+
+class SystemStatus(Base):
+    """Tiny key/value liveness table.
+
+    The escalation scheduler writes the ``scheduler`` heartbeat row every few
+    seconds; ``/readyz`` and monitoring read it to prove the worker that
+    resolves dispatch timeouts is actually running. A dispatch system whose
+    escalator is silently dead is the one failure mode this service can never
+    tolerate, so liveness is a first-class, queryable fact.
+    """
+
+    __tablename__ = "system_status"
+
+    key: Mapped[str] = mapped_column(String(48), primary_key=True)
+    payload: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), default=utcnow
+    )
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -182,6 +231,10 @@ class User(Base):
 
 class CallSession(Base):
     __tablename__ = "call_sessions"
+    # ASHA/admin dashboards scope calls by region + recency on every page.
+    __table_args__ = (
+        Index("ix_call_sessions_region_started", "region_id", "started_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     # Short human-readable reference the caller can quote to any health
@@ -281,6 +334,11 @@ class DispatchCase(Base):
 
 class DispatchEvent(Base):
     __tablename__ = "dispatch_events"
+    # The scheduler scans exactly this predicate every tick; without the
+    # composite index the scan grows with the whole audit history.
+    __table_args__ = (
+        Index("ix_dispatch_events_timeout", "action", "resolved", "due_at"),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("dispatch_cases.id"), index=True)
