@@ -40,6 +40,7 @@ from ..models import (
     utcnow,
 )
 from .telephony import get_provider
+from . import push
 
 log = logging.getLogger("jr.dispatch")
 
@@ -189,6 +190,15 @@ def _place_alert(
 
     # SMS supplement (real providers deliver; simulated logs).
     get_provider().send_sms(contact_phone, alert_sms_text(session))
+
+    # Live push to staff apps: this is the "call cut hote hi dikhe" path --
+    # high priority so a dozing/killed app wakes and raises a full-screen
+    # alert. No-op unless FCM is configured; never raises.
+    push.notify_case_event(
+        db, session, "dispatch_alert", high_priority=True,
+        event_id=ev.id, track=track, contact=contact_name or "",
+        kind_label=contact_kind or "",
+    )
     return ev
 
 
@@ -237,12 +247,18 @@ def start_dispatch(db: Session, session: CallSession) -> DispatchCase:
     else:
         # No configured backup for this area is itself an incident: raise an
         # operator alert immediately rather than pretending track B exists.
+        # resolved=False: like every operator alert it stays in the
+        # follow-up queue until a human acknowledges it.
         _add_event(db, case, track=DispatchTrack.operator.value,
                    action=DispatchAction.operator_alert.value,
-                   detail="no backup contacts configured for region")
+                   detail="no backup contacts configured for region",
+                   resolved=False)
         _say(db, session, "st_operator_alerted")
         db.add(IncidentLog(call_id=session.id, kind="no_backup_contacts",
                            detail=f"region_id={region.id if region else None}"))
+        push.notify_case_event(db, session, "operator_alert", high_priority=True,
+                               track=DispatchTrack.operator.value,
+                               detail="no backup contacts configured for region")
 
     db.flush()
     log.info("dispatch case %s opened for call %s (window=%ss, backup chain=%d)",
@@ -354,6 +370,8 @@ def confirm(db: Session, case: DispatchCase, track: str, *, by: str, contact_id:
     if case.ambulance_confirmed_at and case.backup_confirmed_at and session:
         _say(db, session, "st_both_confirmed")
     db.flush()
+    push.notify_case_event(db, session, "confirmed", high_priority=False,
+                           track=track, contact=name or "")
 
 
 def decline(db: Session, case: DispatchCase, track: str, *, by: str) -> None:
@@ -369,6 +387,8 @@ def decline(db: Session, case: DispatchCase, track: str, *, by: str) -> None:
                    contact_kind=ev.contact_kind, detail=f"declined via {by}")
         _escalate_track(db, case, session, track, from_event=ev, skip_retry=True)
     db.flush()
+    push.notify_case_event(db, session, "declined", high_priority=False,
+                           track=track)
 
 
 def attempt_failed(db: Session, ev: DispatchEvent, reason: str) -> bool:
@@ -560,6 +580,9 @@ def _operator_alert(db: Session, case: DispatchCase, session: CallSession | None
         _say(db, session, "st_operator_alerted")
     db.add(IncidentLog(call_id=session.id if session else None,
                        kind="operator_alert", detail=f"case={case.id} {track}: {detail}"))
+    # A human MUST see this: high-priority push to operators/admins.
+    push.notify_case_event(db, session, "operator_alert", high_priority=True,
+                           track=track, detail=detail)
 
 
 def _maybe_mark_exhausted(db: Session, case: DispatchCase, session: CallSession | None) -> None:
@@ -588,3 +611,5 @@ def _maybe_mark_exhausted(db: Session, case: DispatchCase, session: CallSession 
             _say(db, session, "st_exhausted")
         db.add(IncidentLog(call_id=session.id if session else None,
                            kind="dispatch_exhausted", detail=f"case={case.id}"))
+        # The worst outcome the system can reach: page every staff device.
+        push.notify_case_event(db, session, "exhausted", high_priority=True)

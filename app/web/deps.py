@@ -52,5 +52,13 @@ def get_templates() -> Jinja2Templates:
 
 
 def request_user(request: Request, db: Session) -> User | None:
+    """Resolve the signed-in staff user from the session cookie (browser)
+    or an Authorization: Bearer token (mobile app). Both are the same
+    itsdangerous-signed payload; the app simply stores what /api/auth/login
+    handed it."""
     token = request.cookies.get(settings.SESSION_COOKIE)
+    if not token:
+        auth = request.headers.get("authorization", "")
+        if auth[:7].lower() == "bearer ":
+            token = auth[7:].strip()
     return current_user(db, token)

@@ -229,6 +229,32 @@ class User(Base):
 # Call lifecycle
 # --------------------------------------------------------------------------
 
+class DeviceToken(Base):
+    """FCM registration tokens for staff mobile devices.
+
+    Push is the only reliable way to reach an Android app that is killed or
+    dozing (high-priority FCM data messages are the sanctioned wake path --
+    background sockets are not), so every dispatch state change fans out to
+    the tokens registered here. Tokens rotate on reinstall/data-clear, so
+    registration upserts on the token value and rebinds it to whoever logs
+    in -- a stale token bound to the wrong user would leak one region's
+    emergencies into another's app.
+    """
+
+    __tablename__ = "device_tokens"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    token: Mapped[str] = mapped_column(String(256), unique=True, index=True)
+    platform: Mapped[str] = mapped_column(String(16), default="android")
+    label: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+    user: Mapped[User] = relationship()
+
+
 class CallSession(Base):
     __tablename__ = "call_sessions"
     # ASHA/admin dashboards scope calls by region + recency on every page.

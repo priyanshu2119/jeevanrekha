@@ -72,7 +72,7 @@ app = FastAPI(
 
 app.mount("/static", StaticFiles(directory=HERE / "static"), name="static")
 
-from .web import health, public, sim, staff, webhooks  # noqa: E402  (after app exists)
+from .web import health, public, sim, staff, staff_api, webhooks  # noqa: E402  (after app exists)
 from .web.ratelimit import RateLimitMiddleware  # noqa: E402
 
 # Pure ASGI (never BaseHTTPMiddleware) so the SSE live-status feed streams
@@ -83,6 +83,7 @@ app.include_router(health.router)
 app.include_router(public.router)
 app.include_router(sim.router)
 app.include_router(staff.router)
+app.include_router(staff_api.router)
 app.include_router(webhooks.router)
 
 deps.init_templates(HERE / "templates")

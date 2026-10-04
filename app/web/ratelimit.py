@@ -57,7 +57,7 @@ def _classify(path: str, method: str) -> str | None:
         or path.startswith("/webhooks")
     ):
         return None
-    if path == "/login" and method == "POST":
+    if path in ("/login", "/api/auth/login") and method == "POST":
         return "auth"
     if path == "/api/flow/start" and method == "POST":
         return "flow_start"

@@ -89,6 +89,13 @@ class Settings:
     # --- observability --------------------------------------------------------
     SENTRY_DSN = os.environ.get("JR_SENTRY_DSN", "")
     SENTRY_TRACES_SAMPLE_RATE = float(os.environ.get("JR_SENTRY_TRACES", "0.1"))
+
+    # --- push notifications (FCM) ----------------------------------------------
+    # Path to a Firebase service-account JSON key. Empty = push disabled and
+    # every notify is a no-op, so local dev and tests never touch the network.
+    FCM_SERVICE_ACCOUNT = os.environ.get("JR_FCM_SERVICE_ACCOUNT", "")
+    # Optional override; defaults to the project_id inside the key file.
+    FCM_PROJECT_ID = os.environ.get("JR_FCM_PROJECT_ID", "")
     # A scheduler heartbeat older than this is reported stale by /readyz.
     HEARTBEAT_STALE_SEC = int(os.environ.get("JR_HEARTBEAT_STALE", "60"))
     # When true, /readyz fails (503) if the scheduler heartbeat is stale.
