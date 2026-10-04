@@ -1,0 +1,72 @@
+# Pilot deployment: Postgres + web workers (no in-process scheduler) +
+# exactly ONE dedicated escalation-scheduler process.
+#
+#   cp .env.example .env   # then set JR_SECRET_KEY etc.
+#   docker compose up --build
+#
+# TLS: terminate at your reverse proxy (Traefik/nginx/Caddy) in front of the
+# `web` service; the image already runs uvicorn with --proxy-headers. Expose
+# only the proxy publicly -- /webhooks/* must be reachable by your telephony
+# provider (and locked down via JR_WEBHOOK_SECRET / JR_WEBHOOK_CIDRS).
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: ${JR_PG_USER:-jr}
+      POSTGRES_PASSWORD: ${JR_PG_PASSWORD:?set JR_PG_PASSWORD in .env}
+      POSTGRES_DB: ${JR_PG_DB:-jeevanrekha}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${JR_PG_USER:-jr} -d ${JR_PG_DB:-jeevanrekha}"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  web:
+    build: .
+    environment: &app-env
+      JR_ENV: ${JR_ENV:-production}
+      JR_DATABASE_URL: postgresql+psycopg://${JR_PG_USER:-jr}:${JR_PG_PASSWORD:?set JR_PG_PASSWORD in .env}@db:5432/${JR_PG_DB:-jeevanrekha}
+      JR_SECRET_KEY: ${JR_SECRET_KEY:?set JR_SECRET_KEY in .env -- python -c "import secrets;print(secrets.token_hex(32))"}
+      JR_PUBLIC_BASE_URL: ${JR_PUBLIC_BASE_URL:-}
+      JR_TELEPHONY: ${JR_TELEPHONY:-simulated}
+      JR_WEBHOOK_SECRET: ${JR_WEBHOOK_SECRET:-}
+      JR_WEBHOOK_CIDRS: ${JR_WEBHOOK_CIDRS:-}
+      JR_EXOTEL_SID: ${JR_EXOTEL_SID:-}
+      JR_EXOTEL_TOKEN: ${JR_EXOTEL_TOKEN:-}
+      JR_EXOTEL_FROM: ${JR_EXOTEL_FROM:-}
+      JR_TWILIO_SID: ${JR_TWILIO_SID:-}
+      JR_TWILIO_TOKEN: ${JR_TWILIO_TOKEN:-}
+      JR_TWILIO_FROM: ${JR_TWILIO_FROM:-}
+      JR_SENTRY_DSN: ${JR_SENTRY_DSN:-}
+      JR_CONFIRM_WINDOW: ${JR_CONFIRM_WINDOW:-480}
+      JR_MAX_ATTEMPTS: ${JR_MAX_ATTEMPTS:-2}
+      # Web workers must NEVER run the in-process scheduler (duplicate
+      # escalations); the dedicated `scheduler` service below owns timeouts.
+      JR_RUN_SCHEDULER: "false"
+    ports:
+      - "${JR_PORT:-8300}:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+    restart: unless-stopped
+
+  scheduler:
+    build: .
+    command: ["python", "-m", "app.services.scheduler_worker"]
+    environment:
+      <<: *app-env
+      JR_RUN_SCHEDULER: "true"
+      # The web service owns `alembic upgrade head` at deploy time.
+      JR_SKIP_MIGRATIONS: "1"
+    depends_on:
+      db:
+        condition: service_healthy
+      web:
+        condition: service_started
+    restart: unless-stopped
+
+volumes:
+  pgdata:

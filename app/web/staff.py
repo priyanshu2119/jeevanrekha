@@ -40,6 +40,7 @@ from ..models import (
 from ..security import make_session_token, verify_password
 from ..config import settings
 from ..services.dispatch import ist_str
+from .csrf import csrf_token_for, require_csrf, set_csrf_cookie
 from .deps import get_templates, request_user
 
 router = APIRouter()
@@ -53,12 +54,18 @@ TEMPLATES = get_templates
 
 @router.get("/login", response_class=HTMLResponse)
 def login_page(request: Request, next: str = "/staff", error: str = ""):
-    return TEMPLATES().TemplateResponse(request, "login.html", {
-        "next": next, "error": error,
+    # Double-submit CSRF: the token is rendered into the form's hidden input
+    # and must match the jr_csrf cookie on POST /login.
+    csrf_token = csrf_token_for(request)
+    response = TEMPLATES().TemplateResponse(request, "login.html", {
+        "next": next, "error": error, "csrf_token": csrf_token,
     })
+    if settings.CSRF_COOKIE not in request.cookies:
+        set_csrf_cookie(response, csrf_token)
+    return response
 
 
-@router.post("/login")
+@router.post("/login", dependencies=[Depends(require_csrf)])
 def login_submit(
     request: Request,
     username: str = Form(...),
@@ -76,6 +83,7 @@ def login_submit(
         max_age=12 * 3600,
         httponly=True,
         samesite="lax",
+        secure=settings.COOKIE_SECURE,
     )
     return response
 
@@ -441,13 +449,18 @@ def admin_regions(request: Request, db: Session = Depends(get_db)):
         return RedirectResponse("/login?next=/admin/regions", status_code=303)
     regions = db.scalars(select(Region).order_by(Region.state, Region.district, Region.block)).all()
     kinds = [k.value for k in ContactKind]
-    return TEMPLATES().TemplateResponse(request, "admin_regions.html", {
+    csrf_token = csrf_token_for(request)
+    response = TEMPLATES().TemplateResponse(request, "admin_regions.html", {
         "user": user, "regions": regions, "kinds": kinds,
         "default_window": settings.DISPATCH_CONFIRM_WINDOW_SEC,
+        "csrf_token": csrf_token,
     })
+    if settings.CSRF_COOKIE not in request.cookies:
+        set_csrf_cookie(response, csrf_token)
+    return response
 
 
-@router.post("/admin/regions")
+@router.post("/admin/regions", dependencies=[Depends(require_csrf)])
 def admin_region_create(
     request: Request,
     state: str = Form(...),
@@ -470,7 +483,7 @@ def admin_region_create(
     return RedirectResponse("/admin/regions", status_code=303)
 
 
-@router.post("/admin/regions/{region_id}")
+@router.post("/admin/regions/{region_id}", dependencies=[Depends(require_csrf)])
 def admin_region_update(
     region_id: int,
     request: Request,
@@ -494,7 +507,7 @@ def admin_region_update(
     return RedirectResponse("/admin/regions", status_code=303)
 
 
-@router.post("/admin/regions/{region_id}/contacts")
+@router.post("/admin/regions/{region_id}/contacts", dependencies=[Depends(require_csrf)])
 def admin_contact_create(
     region_id: int,
     request: Request,
@@ -523,7 +536,7 @@ def admin_contact_create(
     return RedirectResponse("/admin/regions", status_code=303)
 
 
-@router.post("/admin/contacts/{contact_id}")
+@router.post("/admin/contacts/{contact_id}", dependencies=[Depends(require_csrf)])
 def admin_contact_update(
     contact_id: int,
     request: Request,

@@ -10,6 +10,9 @@ os.environ["JR_CONFIRM_WINDOW"] = "60"
 os.environ["JR_MAX_ATTEMPTS"] = "2"
 os.environ["JR_TICK"] = "3600"
 os.environ["JR_SECRET_KEY"] = "test-secret"
+# Rate limiting is verified explicitly in test_ratelimit.py; keep it off here
+# so the other suites stay deterministic regardless of request counts.
+os.environ["JR_RATE_LIMIT_ENABLED"] = "false"
 
 import pytest  # noqa: E402
 from sqlalchemy.orm import Session  # noqa: E402

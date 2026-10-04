@@ -86,7 +86,8 @@ Staff accounts created by the seed script:
 Run the automated proof any time:
 
 ```bash
-.venv/bin/python -m pytest        # 64 tests: engine, flow, dispatch, HTTP
+.venv/bin/python -m pytest        # 94 tests: engine, flow, dispatch, HTTP,
+                                  # webhook auth, CSRF, rate limits, probes
 ```
 
 ## Architecture
@@ -176,11 +177,46 @@ tests/             # 64 tests covering the definition of done
 
 ## Production notes
 
-- Set `JR_SECRET_KEY`, `JR_TELEPHONY=exotel|twilio` + credentials, point
-  `JR_DATABASE_URL` at Postgres, run uvicorn behind TLS (gunicorn workers or
-  your platform's Python runtime). The scheduler is in-process; for
-  multi-worker deployments run one dedicated worker with the scheduler or move
-  `process_timeouts` to a cron/Celery beat — the job table is already durable.
+**One command (Docker Compose):** copy `.env.example` to `.env`, set
+`JR_SECRET_KEY` and `JR_PG_PASSWORD`, then `docker compose up --build`. This
+starts Postgres, the web service (2 uvicorn workers, in-process scheduler
+OFF) and exactly one dedicated escalation-scheduler process. The entrypoint
+applies `alembic upgrade head` before serving.
+
+- **Migrations**: schema is managed by Alembic (`alembic upgrade head`).
+  A database created before migrations existed (e.g. an old `run.sh` dev
+  database built by `create_all`) is adopted with:
+  `alembic stamp e951365fb128 && alembic upgrade head`.
+- **Scheduler**: escalation timing lives in the DB, but the worker is a
+  process. Run it exactly once: either in-process (single-process
+  deployments, `JR_RUN_SCHEDULER=true` default) or as
+  `python -m app.services.scheduler_worker` while web workers set
+  `JR_RUN_SCHEDULER=false` (compose does this). N workers with in-process
+  schedulers would place N duplicate outbound calls per timeout.
+- **Webhook auth**: `/webhooks/*` is the only public door into triage and
+  dispatch. Set `JR_WEBHOOK_SECRET` (sent as `X-JR-Webhook-Secret` or
+  `?token=` — Exotel dashboards can only set the URL) and/or
+  `JR_WEBHOOK_CIDRS` (source-IP allowlist; run uvicorn with
+  `--proxy-headers` behind your TLS proxy). Twilio requests are additionally
+  verified via `X-Twilio-Signature` (HMAC-SHA1) when `JR_TWILIO_TOKEN` is
+  set. Provider webhook retries are deduplicated (`JR_WEBHOOK_DEDUP`) so a
+  replayed DTMF digit can never answer the next question by accident.
+  `JR_ENV=production` refuses to boot with a real provider and no webhook
+  auth, or with the default secret key.
+- **Inbound region routing**: real phone calls resolve their region from the
+  dialled number via the `region_phone_numbers` table (one DID per region is
+  the reliable routing signal — without a region there is no Track B backup
+  chain).
+- **Probes & observability**: `GET /healthz` (liveness), `GET /readyz`
+  (DB + scheduler-heartbeat age; make heartbeat staleness fatal with
+  `JR_READYZ_REQUIRE_SCHEDULER=true` on the scheduler container). Optional
+  Sentry via `JR_SENTRY_DSN`. Per-IP rate limits protect `/login` and
+  `/api/flow/start` (webhooks and probes are exempt by design).
+- **CSRF**: staff form POSTs (login, region/contact config) use a
+  double-submit cookie (`jr_csrf`); session cookies are `Secure` when
+  `JR_ENV=production`.
+- Set `JR_TELEPHONY=exotel|twilio` + credentials, point `JR_DATABASE_URL` at
+  Postgres, terminate TLS at your reverse proxy.
 - The `/sim` desk locks behind operator login automatically once a real
   telephony provider is configured.
 - A WhatsApp/low-bandwidth text companion can reuse `/api/flow/*` unchanged —

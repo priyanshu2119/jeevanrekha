@@ -1,0 +1,32 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Byte-compile (syntax gate)
+        run: python -m compileall -q app alembic scripts tests
+
+      - name: Run test suite
+        run: python -m pytest
+
+      - name: Verify migrations build a fresh schema
+        run: |
+          rm -f /tmp/ci-migrations.db
+          JR_DATABASE_URL=sqlite:////tmp/ci-migrations.db alembic upgrade head
+          JR_DATABASE_URL=sqlite:////tmp/ci-migrations.db alembic current | grep -q b7d2f4a91c03

@@ -47,9 +47,20 @@ def _make_user(db, username, role, region=None, password="test1234"):
     return user
 
 
+def _csrf(client) -> str:
+    """Issue (or reuse) the double-submit CSRF cookie and return its token.
+    GET /login sets the jr_csrf cookie; the same value must ride along in the
+    form body of every cookie-authenticated POST."""
+    if not client.cookies.get("jr_csrf"):
+        client.get("/login")
+    return client.cookies.get("jr_csrf") or ""
+
+
 def _login(client, username, password="test1234"):
     return client.post("/login", data={"username": username, "password": password,
-                                       "next": "/staff"}, follow_redirects=False)
+                                       "next": "/staff",
+                                       "csrf_token": _csrf(client)},
+                       follow_redirects=False)
 
 
 def _run_web_call(db, region, positives: dict[str, str], track="maternal",
@@ -245,6 +256,7 @@ class TestRegionConfig:
         r = client.post("/admin/regions", data={
             "state": "X", "district": "Y", "block": "Z",
             "emergency_number": "108", "confirm_window_sec": "300",
+            "csrf_token": _csrf(client),
         }, follow_redirects=True)
         assert r.status_code == 200
         region = db.query(Region).filter_by(block="Z").first()
@@ -253,6 +265,7 @@ class TestRegionConfig:
         client.post(f"/admin/regions/{region.id}/contacts", data={
             "name": "New ASHA", "kind": ContactKind.asha.value,
             "phone": "9000000000", "priority": "5", "notes": "",
+            "csrf_token": _csrf(client),
         }, follow_redirects=True)
         contact = db.query(BackupContact).filter_by(region_id=region.id).first()
         assert contact and contact.priority == 5

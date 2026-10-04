@@ -17,6 +17,7 @@
   <div class="card mb2">
     <div class="panel-title">{{ icon("pin") }} Add a region</div>
     <form method="post" action="/admin/regions" class="form-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
       <div class="field"><label>State</label><input name="state" type="text" required placeholder="Madhya Pradesh"></div>
       <div class="field"><label>District</label><input name="district" type="text" required placeholder="Sehore"></div>
       <div class="field"><label>Block</label><input name="block" type="text" required placeholder="Ashta"></div>
@@ -40,6 +41,7 @@
     </div>
 
     <form method="post" action="/admin/regions/{{ r.id }}" class="form-row mt1">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
       <div class="field"><label>Emergency number</label><input name="emergency_number" type="text" value="{{ r.emergency_number }}"></div>
       <div class="field"><label>Confirm window (s)</label><input name="confirm_window_sec" type="number" min="30" value="{{ r.confirm_window_sec or '' }}" placeholder="{{ default_window }}"></div>
       <div class="field" style="flex:0">
@@ -70,11 +72,14 @@
         </tbody>
       </table>
       {% for c in r.contacts %}
-      <form id="cf-{{ c.id }}" method="post" action="/admin/contacts/{{ c.id }}"></form>
+      <form id="cf-{{ c.id }}" method="post" action="/admin/contacts/{{ c.id }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
+      </form>
       {% endfor %}
     </div>
 
     <form method="post" action="/admin/regions/{{ r.id }}/contacts" class="form-row">
+      <input type="hidden" name="csrf_token" value="{{ csrf_token or '' }}">
       <div class="field"><label>Name</label><input name="name" type="text" required placeholder="Sunita Verma (ASHA)"></div>
       <div class="field"><label>Kind</label>
         <select name="kind">
