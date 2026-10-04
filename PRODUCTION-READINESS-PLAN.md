@@ -744,12 +744,17 @@ Options: native **Kotlin + Jetpack Compose**, **Flutter**, **React Native**, ya
 - [x] CI (GitHub Actions: compileall + pytest + fresh-DB migration check).
 
 **Week 2–3 (telephony):**
-- [ ] Exotel account + KYC + ek test DID.
-- [ ] `telephony.py` Exotel adapter rewrite (ExoML `<Gather>` inbound,
-      `Calls/connect` + ExoML outbound, correct `Url`).
-- [ ] `webhooks.py` ExoML responses (fix `<Say>`-only bug).
-- [ ] DLT PE registration + SMS templates.
-- [ ] Real end-to-end test call.
+- [ ] Exotel account + KYC + ek test DID. *(vendor onboarding — user karna hai)*
+- [x] `telephony.py` Exotel adapter rewrite (ExoML `<Gather>` inbound,
+      `Calls/connect` flow pattern: From=callee, CallerId=ExoPhone, Url=ExoML
+      endpoint, StatusCallback; correct response parsing; DLT-aware SMS).
+- [x] `webhooks.py` ExoML responses (Gather+Redirect IVR loop, emergency
+      status loop with bounded hold, responder-alert + call-status endpoints,
+      event-id-precise confirm, mispress-safe digits, CallSid session binding).
+- [x] Busy/no-answer/failed outbound legs escalate immediately (attempt_failed).
+- [x] Admin UI for DID→region mapping (Regions & routing page).
+- [ ] DLT PE registration + SMS templates. *(vendor onboarding — user karna hai)*
+- [ ] Real end-to-end test call. *(needs real Exotel credentials + DID)*
 
 **Week 3–7 (Android):**
 - [ ] Firebase project + service account + `firebase-admin` in backend.

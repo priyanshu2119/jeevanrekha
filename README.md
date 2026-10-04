@@ -86,8 +86,9 @@ Staff accounts created by the seed script:
 Run the automated proof any time:
 
 ```bash
-.venv/bin/python -m pytest        # 94 tests: engine, flow, dispatch, HTTP,
-                                  # webhook auth, CSRF, rate limits, probes
+.venv/bin/python -m pytest        # 128 tests: engine, flow, dispatch, HTTP,
+                                  # webhook auth, CSRF, rate limits, probes,
+                                  # ExoML voice IVR, provider adapters
 ```
 
 ## Architecture
@@ -217,6 +218,42 @@ applies `alembic upgrade head` before serving.
   `JR_ENV=production`.
 - Set `JR_TELEPHONY=exotel|twilio` + credentials, point `JR_DATABASE_URL` at
   Postgres, terminate TLS at your reverse proxy.
+
+### Real telephony wiring (Exotel)
+
+The voice path is ExoML (Exotel's event-driven XML, verified against their
+official `goexoml` verb set). One-time setup per deployment:
+
+1. **ExoPhone (DID)**: rent a landline-series number (TRAI: service/
+   transactional use; the 140-series is promotional-only), complete KYC.
+2. **Exophone URL** (dashboard → call flow / app URL):
+   `https://<your-host>/webhooks/exotel/inbound?token=<JR_WEBHOOK_SECRET>`.
+   Every step of the call is a `<Gather>` served by that endpoint; silence
+   falls through a `<Redirect>` back to it (recorded as silence → repeat →
+   UNCLEAR → escalate, exactly like the simulator).
+3. **Status callback** (dashboard or per-call): point call-status events at
+   `https://<your-host>/webhooks/exotel/call-status` — inbound teardowns
+   finalise partial triage; outbound alert legs that end busy/no-answer/failed
+   escalate immediately instead of burning the confirmation window.
+4. **Map the DID to its region**: Admin → *Regions & routing* → *Helpline
+   numbers*. This is what makes Track B (the local backup chain) fire for
+   real phone calls — an unmapped number gets only the generic 108 alert.
+5. **Outbound alerts need no dashboard work**: dispatch calls
+   `Calls/connect.json` (From = responder, CallerId = your ExoPhone,
+   Url = `/webhooks/exotel/responder-alert?event_id=N`) and the responder
+   hears the alert and presses 1 (confirm) / 2 (cannot help — escalates at
+   once; any other key is ignored, a mispress is never a decline).
+6. **SMS (DLT)**: register your Principal Entity, header and emergency
+   template on a DLT portal, then set `JR_EXOTEL_DLT_TEMPLATE` /
+   `JR_EXOTEL_DLT_ENTITY` — Indian carriers drop SMS without them.
+7. Set `JR_PUBLIC_BASE_URL` to the public origin (ExoML action URLs must be
+   absolute; production refuses to boot without it).
+
+Twilio adapter note: Twilio's own India guidelines mark domestic inbound/
+outbound voice as N/A, so Twilio is only viable where you hold usable
+non-Indian numbers; Exotel is the India path. The TwiML endpoints mirror the
+ExoML ones (`/webhooks/twilio/*`).
+
 - The `/sim` desk locks behind operator login automatically once a real
   telephony provider is configured.
 - A WhatsApp/low-bandwidth text companion can reuse `/api/flow/*` unchanged —
