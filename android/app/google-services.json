@@ -1,0 +1,30 @@
+{
+  "_comment": "PLACEHOLDER. Replace with the real google-services.json downloaded from your Firebase project (Project settings -> Your apps -> Android app org.jeevanrekha.responder). Until then the app builds and runs; FCM token fetch fails gracefully and push stays off.",
+  "project_info": {
+    "project_number": "000000000000",
+    "project_id": "jeevanrekha-placeholder",
+    "storage_bucket": "jeevanrekha-placeholder.appspot.com"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:000000000000:android:0000000000000000000000",
+        "android_client_info": {
+          "package_name": "org.jeevanrekha.responder"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-PLACEHOLDER-KEY-REPLACE-ME-000000"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

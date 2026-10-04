@@ -167,13 +167,20 @@ room). Global env knobs in `.env.example` (`JR_CONFIRM_WINDOW`,
 app/
   engine/          # pure triage: questions.py, rules.py, i18n.py, lang/{en,hi,mr,bn,ta,te}.py
   services/        # call_flow.py (state machine), dispatch.py (routing/escalation),
-                   # scheduler.py (durable worker), telephony.py (providers)
+                   # scheduler.py (durable worker), telephony.py (providers),
+                   # voice_xml.py (ExoML/TwiML), push.py (FCM HTTP v1)
   web/             # public.py (landing/triage/API/SSE), sim.py (simulator+desk),
-                   # staff.py (login/ASHA/admin/regions), webhooks.py (Exotel/Twilio)
+                   # staff.py (login/ASHA/admin/regions), staff_api.py (mobile JSON API),
+                   # webhooks.py (Exotel/Twilio voice control), webhook_auth.py,
+                   # csrf.py, ratelimit.py, health.py
   templates/       # Jinja2 (base, landing, triage, sim, login, asha, admin*, call_detail)
   static/          # css/app.css (design system), js/{flow,triage,sim}.js, img/
+android/           # JeevanRekha Responder: Kotlin/Compose app for ASHA + operator
+                   # (FCM high-priority push, full-screen lock-screen alerts,
+                   #  confirm/decline from the notification, live case polling)
+alembic/           # schema migrations (alembic upgrade head)
 scripts/seed.py    # regions, contacts, staff, engine-computed 14-day history
-tests/             # 64 tests covering the definition of done
+tests/             # 146 tests covering the definition of done + production hardening
 ```
 
 ## Production notes
@@ -256,6 +263,13 @@ ExoML ones (`/webhooks/twilio/*`).
 
 - The `/sim` desk locks behind operator login automatically once a real
   telephony provider is configured.
+- **Push to staff phones**: set `JR_FCM_SERVICE_ACCOUNT` to a Firebase
+  service-account key and every dispatch state change (alert placed,
+  confirmed, declined, operator alert, exhausted) fans out as an FCM
+  high-priority data message to operators/admins and the case region's ASHA
+  workers. The Android app (`android/`) wakes from Doze and shows a
+  full-screen, alarm-style alert with Confirm / Cannot-help — the same two
+  decisions as the responder's DTMF on the voice call. Unconfigured = no-op.
 - A WhatsApp/low-bandwidth text companion can reuse `/api/flow/*` unchanged —
   it is the same state machine the web companion already uses.
 

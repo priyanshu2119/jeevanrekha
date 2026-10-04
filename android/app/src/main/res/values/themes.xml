@@ -1,0 +1,5 @@
+<resources>
+    <!-- Plain platform theme: the UI is fully Compose, activities only need
+         a no-action-bar base. -->
+    <style name="Theme.JeevanRekha" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>

@@ -757,13 +757,12 @@ Options: native **Kotlin + Jetpack Compose**, **Flutter**, **React Native**, ya
 - [ ] Real end-to-end test call. *(needs real Exotel credentials + DID)*
 
 **Week 3–7 (Android):**
-- [ ] Firebase project + service account + `firebase-admin` in backend.
-- [ ] `DeviceToken` model + `/api/devices` + `app/services/push.py`.
-- [ ] FCM send hooks in `dispatch.py` (alert/confirm/decline/exhausted).
-- [ ] Token auth (`/api/auth/login` JWT) + `get_current_user` Bearer support.
-- [ ] Kotlin/Compose app: login, FCM data-message service, full-screen emergency
-      intent, ASHA home, Operator desk (SSE live), call detail, offline cache.
-- [ ] Play Console internal testing + FSI declaration.
+- [x] Firebase project + service account + `google-auth`-based FCM HTTP v1 sender in backend (`app/services/push.py`). *(Firebase project banana user-side hai; code ready)*
+- [x] `DeviceToken` model + `/api/devices` + dispatch.py mein FCM hooks (alert/confirm/decline/operator-alert/exhausted).
+- [x] Token auth (`/api/auth/login` JWT-style signed token) + `get_current_user` Bearer support.
+- [x] Kotlin/Compose app (`android/`): login, FCM data-message service, full-screen emergency intent (lock screen + alarm sound), ASHA home, Operator desk (SSE-style 4s polling + last-known-state), call detail, offline-tolerant, token Keystore storage. **APK build verified.**
+- [x] Staff JSON API: `/api/staff/overview` (single compact poll payload, role-scoped), `/api/staff/calls/{ref}`, `/api/desk/{id}/confirm|decline|ack` (ASHA apne region ke alerts pe act kar sakti hai).
+- [ ] Play Console internal testing + FSI declaration. *(user-side)*
 
 **Parallel (compliance):**
 - [ ] DPDP: privacy notice, Section 7 medical-emergency basis document, consent

@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- Emergency dispatch alerts ring full-screen from the lock screen,
+         like an alarm/incoming call. On Android 14+ the permission is only
+         granted by default to alarm/calling-style apps; declare it in Play
+         Console and guide users to grant it during onboarding. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
+    <uses-permission android:name="android.permission.VIBRATE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+
+    <application
+        android:name=".JrApp"
+        android:allowBackup="false"
+        android:icon="@drawable/ic_logo"
+        android:label="@string/app_name"
+        android:supportsRtl="true"
+        android:theme="@style/Theme.JeevanRekha"
+        android:usesCleartextTraffic="true">
+        <!-- usesCleartextTraffic: pilot deployments may serve plain HTTP on a
+             LAN for testing. Production runs behind TLS and this should be
+             removed (or scoped with a network security config). -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <!-- Full-screen emergency alert (launched from the FCM notification's
+             fullScreenIntent). Shows over the lock screen, turns it on, and
+             stays out of recents. -->
+        <activity
+            android:name=".AlertActivity"
+            android:excludeFromRecents="true"
+            android:exported="false"
+            android:launchMode="singleInstance"
+            android:showOnLockScreen="true"
+            android:taskAffinity=""
+            android:theme="@style/Theme.JeevanRekha"
+            android:turnScreenOn="true" />
+
+        <service
+            android:name=".PushService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="jr_updates" />
+    </application>
+
+</manifest>
